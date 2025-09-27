@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Transcription App</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-microphone"></i> Audio Transcription</h1>
+            <p>Record audio and get instant transcription using Google Cloud Speech-to-Text</p>
+        </header>
+
+        <main class="main-content">
+            <div class="recording-section">
+                <div class="recording-controls">
+                    <button id="recordBtn" class="btn btn-primary">
+                        <i class="fas fa-microphone"></i>
+                        <span>Start Live Transcription</span>
+                    </button>
+                    <button id="stopBtn" class="btn btn-secondary" disabled>
+                        <i class="fas fa-stop"></i>
+                        <span>Stop Transcription</span>
+                    </button>
+                    <button id="playBtn" class="btn btn-tertiary" disabled>
+                        <i class="fas fa-play"></i>
+                        <span>Play Recording</span>
+                    </button>
+                </div>
+
+                <div class="recording-status">
+                    <div id="recordingIndicator" class="recording-indicator">
+                        <div class="pulse"></div>
+                        <span>Recording...</span>
+                    </div>
+                    <div id="timer" class="timer">00:00</div>
+                </div>
+
+                <div class="audio-visualizer">
+                    <canvas id="visualizer" width="400" height="100"></canvas>
+                </div>
+            </div>
+
+            <div class="transcription-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-file-text"></i> Live Transcription</h2>
+                    <div class="transcription-status">
+                        <span id="connectionStatus" class="status-indicator">
+                            <i class="fas fa-circle"></i>
+                            <span>Disconnected</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="transcription-content">
+                    <div id="transcriptionResult" class="transcription-result">
+                        <p class="placeholder">Start speaking to see live transcription...</p>
+                    </div>
+                </div>
+
+                <div class="loading" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <span>Connecting to transcription service...</span>
+                </div>
+            </div>
+
+            <div class="text-input-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-keyboard"></i> Text Input (Alternative)</h2>
+                    <p class="section-description">Type or paste text directly as an alternative to live transcription</p>
+                </div>
+
+                <div class="text-input-content">
+                    <div class="input-group">
+                        <label for="speakerSelect">Speaker:</label>
+                        <select id="speakerSelect" class="speaker-select">
+                            <option value="Patient">Patient</option>
+                            <option value="Doctor">Doctor</option>
+                            <option value="Speaker 1">Speaker 1</option>
+                            <option value="Speaker 2">Speaker 2</option>
+                        </select>
+                    </div>
+                    
+                    <div class="text-input-group">
+                        <textarea 
+                            id="textInput" 
+                            class="text-input" 
+                            placeholder="Enter medical conversation text here... (e.g., 'Patient complains of chest pain that started 2 days ago. Family history of diabetes in mother.')"
+                            rows="6"
+                        ></textarea>
+                    </div>
+                    
+                    <div class="text-input-controls">
+                        <button id="processTextBtn" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i>
+                            <span>Process Text</span>
+                        </button>
+                        <button id="clearTextBtn" class="btn btn-secondary">
+                            <i class="fas fa-eraser"></i>
+                            <span>Clear</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="medical-report-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-file-medical"></i> Medical Report</h2>
+                    <div class="report-controls">
+                        <button id="viewReportBtn" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Update Report</span>
+                        </button>
+                        <button id="finalReportBtn" class="btn btn-success">
+                            <i class="fas fa-file-export"></i>
+                            <span>Final Report</span>
+                        </button>
+                        <button id="previewReportBtn" class="btn btn-warning">
+                            <i class="fas fa-eye"></i>
+                            <span>Preview Report</span>
+                        </button>
+                        <button id="generatePdfBtn" class="btn btn-info">
+                            <i class="fas fa-file-pdf"></i>
+                            <span>Generate PDF</span>
+                        </button>
+                        <button id="generateDischargeBtn" class="btn btn-success" style="display: none;">
+                            <i class="fas fa-file-medical"></i>
+                            <span>Generate Discharge Summary</span>
+                        </button>
+                        <button id="resetReportBtn" class="btn btn-secondary">
+                            <i class="fas fa-refresh"></i>
+                            <span>Reset</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="report-content">
+                    <div id="reportDisplay" class="report-display">
+                        <p class="placeholder">Medical report will appear here as conversation progresses...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="similar-cases-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-search"></i> Similar Cases</h2>
+                </div>
+
+                <div class="similar-cases-content">
+                    <div id="similarCasesDisplay" class="similar-cases-display">
+                        <p class="placeholder">Similar medical cases will appear here...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="download-section">
+                <button id="downloadBtn" class="btn btn-outline" disabled>
+                    <i class="fas fa-download"></i>
+                    <span>Download Audio</span>
+                </button>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Powered by Google Cloud Speech-to-Text API</p>
+        </footer>
+    </div>
+
+    <!-- Report Preview Modal -->
+    <div id="reportPreviewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Report Preview</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="reportPreviewContent"></div>
+                <div class="discharge-prompt" style="display: none;">
+                    <h4>Would you like to generate a discharge summary?</h4>
+                    <p>A discharge summary will include disease information, medications, lifestyle changes, and follow-up instructions.</p>
+                    <div class="discharge-buttons">
+                        <button id="yesDischargeBtn" class="btn btn-success">Yes, Generate Discharge Summary</button>
+                        <button id="noDischargeBtn" class="btn btn-secondary">No, Just Preview</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Discharge Summary Modal -->
+    <div id="dischargeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Discharge Summary</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="dischargeContent" class="discharge-preview-mode"></div>
+                <div class="discharge-edit-mode">
+                    <textarea id="dischargeEditTextarea" placeholder="Edit the discharge summary content here..."></textarea>
+                    <div class="discharge-edit-controls">
+                        <button id="saveDischargeBtn" class="btn btn-success">
+                            <i class="fas fa-save"></i>
+                            Save Changes
+                        </button>
+                        <button id="cancelEditBtn" class="btn btn-secondary">
+                            <i class="fas fa-times"></i>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+                <div class="discharge-actions">
+                    <button id="editDischargeBtn" class="btn btn-warning">
+                        <i class="fas fa-edit"></i>
+                        Edit Discharge Summary
+                    </button>
+                    <button id="downloadDischargeBtn" class="btn btn-info">
+                        <i class="fas fa-download"></i>
+                        Download Discharge Summary
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
