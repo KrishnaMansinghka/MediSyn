@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Assistant Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .chat-container {
+            max-width: 700px;
+            height: 85vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .message {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1.25rem;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #e0e7ff;
+            color: #1f2937;
+            align-self: flex-end;
+            border-bottom-right-radius: 0.25rem;
+        }
+        .assistant-message {
+            background-color: #f3f4f6;
+            color: #1f2937;
+            align-self: flex-start;
+            border-bottom-left-radius: 0.25rem;
+        }
+        .input-area {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-top: 1px solid #e5e7eb;
+            gap: 0.5rem;
+        }
+        .input-area input {
+            flex-grow: 1;
+            padding: 0.75rem 1rem;
+            border-radius: 9999px;
+            border: 1px solid #d1d5db;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-area input:focus {
+            border-color: #3b82f6;
+        }
+        .input-area button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            background-color: #4f46e5;
+            color: #ffffff;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .input-area button:hover {
+            background-color: #4338ca;
+        }
+        .control-buttons {
+            display: flex;
+            justify-content: center;
+            padding: 1rem 0;
+            gap: 1rem;
+        }
+        .control-buttons button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        #clearButton {
+            background-color: #ef4444;
+            color: white;
+        }
+        #clearButton:hover {
+            background-color: #dc2626;
+        }
+        .header {
+            background-color: #f3f4f6;
+            padding: 1.5rem;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .loading-dots {
+            display: flex;
+            align-self: flex-start;
+            gap: 4px;
+            padding: 0.75rem 1rem;
+        }
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #6b7280;
+            border-radius: 50%;
+            animation: bounce 1s infinite;
+        }
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        #error-message {
+            position: fixed;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #f87171;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="chat-container">
+        <div class="header">Medical Assistant Chatbot</div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div id="loadingIndicator" class="hidden loading-dots">
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type your symptoms here...">
+            <button id="sendButton">Send</button>
+        </div>
+        <div class="control-buttons">
+            <button id="clearButton">Start Over</button>
+        </div>
+    </div>
+    <div id="error-message" class="error-message"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the environment
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // PASTE YOUR GEMINI API KEY HERE (left empty for environment use)
+        const apiKey = "";
+
+        // Tokens and States
+        const REPORT_COMPLETE_TOKEN = "<<REPORT_COMPLETE>>"; // AI uses this to signal end of medical interview
+
+        // State variables loaded from Firestore
+        let db, auth, userId = null;
+        let conversationDocRef = null;
+        let isAuthReady = false;
+        let chatState = 'medical_interview'; // possible: 'medical_interview', 'complete'
+
+        // Firebase Initialization and Authentication
+        const setupFirebase = async () => {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        conversationDocRef = doc(db, `/artifacts/${appId}/users/${userId}/conversations`, 'medical-assistant-conversation');
+                        isAuthReady = true;
+                        
+                        // Set up real-time listener for the conversation
+                        onSnapshot(conversationDocRef, (docSnap) => {
+                            if (!docSnap.exists() || !isAuthReady) {
+                                // Handles new users or when the document is being cleared
+                                if (isAuthReady) clearConversation();
+                                return;
+                            }
+                            
+                            const data = docSnap.data();
+                            const messages = data.messages || [];
+                            displayMessages(messages);
+
+                            // Load state from Firestore
+                            chatState = data.chatState || 'medical_interview';
+
+                            // Check if the chat should be locked
+                            const isConversationComplete = chatState === 'complete';
+                            
+                            if (isConversationComplete) {
+                                messageInput.disabled = true;
+                                sendButton.disabled = true;
+                            } else {
+                                messageInput.disabled = false;
+                                sendButton.disabled = false;
+
+                                // If chat is ready but history is empty, start the conversation
+                                if (messages.length === 0) {
+                                    clearConversation();
+                                }
+                            }
+                        }, (error) => {
+                            console.error("Error listening to conversation:", error);
+                        });
+
+                    } else {
+                        isAuthReady = true;
+                        console.log("User not signed in. Functionality may be limited.");
+                    }
+                });
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Error setting up Firebase:", error);
+                showError('Failed to initialize Firebase.');
+            }
+        };
+        
+        // --- UI Element References ---
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const clearButton = document.getElementById('clearButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorMessageDiv = document.getElementById('error-message');
+
+        /**
+         * Displays a temporary error message to the user.
+         * @param {string} message - The error message to display.
+         */
+        const showError = (message) => {
+            errorMessageDiv.textContent = message;
+            errorMessageDiv.style.display = 'block';
+            setTimeout(() => {
+                errorMessageDiv.style.display = 'none';
+            }, 5000);
+        };
+
+        // --- Core Utility Functions ---
+
+        /**
+         * Updates the internal chat state in Firestore.
+         */
+        const updateChatState = async (newState) => {
+            if (!isAuthReady) return;
+            chatState = newState;
+            await updateDoc(conversationDocRef, { chatState: newState });
+        };
+
+        /**
+         * Appends a new message to the conversation and saves it to Firestore.
+         * NOTE: Only used for single messages outside of the main sendMessage flow.
+         * @param {string} sender - 'user' or 'assistant'.
+         * @param {string} text - The message text.
+         */
+        const appendAndSaveMessage = async (sender, text) => {
+            if (!isAuthReady) {
+                console.error("Authentication not ready. Cannot save message.");
+                showError("Authentication not ready. Please wait a moment.");
+                return;
+            }
+            try {
+                const docSnap = await getDoc(conversationDocRef);
+                const currentMessages = docSnap.exists() ? docSnap.data().messages || [] : [];
+                const updatedMessages = [...currentMessages, { sender, text }];
+                await setDoc(conversationDocRef, { messages: updatedMessages }, { merge: true });
+            } catch (error) {
+                console.error("Error appending and saving message:", error);
+                showError("Failed to save message. Please try again.");
+            }
+        };
+
+        // --- Functions ---
+        
+        /**
+         * Renders the messages to the chat interface.
+         * @param {Array<Object>} messages - The array of message objects.
+         */
+        const displayMessages = (messages) => {
+            chatMessages.innerHTML = '';
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message', msg.sender === 'user' ? 'user-message' : 'assistant-message');
+                messageDiv.textContent = msg.text.replace(REPORT_COMPLETE_TOKEN, '').trim();
+                if (messageDiv.textContent) {
+                     chatMessages.appendChild(messageDiv);
+                }
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        };
+
+        /**
+         * Clears the conversation from both the UI and Firestore.
+         */
+        const clearConversation = async () => {
+            if (!isAuthReady) {
+                console.error("Authentication not ready. Cannot clear conversation.");
+                return;
+            }
+            try {
+                const initialMessage = {
+                    sender: 'assistant',
+                    text: "Hello. What's been going on with you?"
+                };
+                await setDoc(conversationDocRef, { 
+                    messages: [initialMessage],
+                    chatState: 'medical_interview'
+                });
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+            } catch (error) {
+                console.error("Error clearing conversation:", error);
+                showError("Failed to clear conversation. Please try again.");
+            }
+        };
+
+
+        /**
+         * Calls the Gemini API to get a response from the chatbot.
+         */
+        const getChatbotResponse = async (conversationHistory) => {
+            loadingIndicator.classList.remove('hidden');
+
+            const systemPrompt = `You are a medical assistant. Your role is to ask clarifying questions about a patient's symptoms. Your responses should be brief, direct, and often in the form of incomplete sentences. Focus on asking one to two questions at a time. Do not provide a diagnosis, medical advice, or treatment recommendations. Your only job is to ask questions to gather more information for a doctor.
+
+You can respond in other languages or rephrase questions if the user requests it. Always maintain your persona and return to the core questioning process afterward.
+
+When a user provides information not directly related to your last question, acknowledge the new information and ask relevant follow-up questions about it first. You can ask the original question again later if it has not been addressed. The ultimate goal is to get a comprehensive report covering all aspects of the patient's condition, medical history, family history, and lifestyle.
+
+When you have exhausted all lines of questioning and feel the medical report is comprehensive, respond with the final message followed by the token. Example final message: "Thank you. The medical information is complete. The PDF report is being generated. ${REPORT_COMPLETE_TOKEN}"`;
+            
+            const formattedHistory = conversationHistory.map(msg => ({
+                role: msg.sender === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.text }]
+            }));
+
+            const payload = {
+                contents: formattedHistory,
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                model: "gemini-2.5-flash-preview-05-20"
+            };
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            let response;
+            try {
+                // Use exponential backoff for API call
+                let attempts = 0;
+                const maxAttempts = 5;
+                while (attempts < maxAttempts) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            return result?.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response. Please try again.";
+                        } else if (response.status === 429) {
+                            // Too Many Requests, retry with backoff
+                            const delay = Math.pow(2, attempts) * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        } else {
+                            throw new Error(`API call failed with status: ${response.status}`);
+                        }
+                    } catch (error) {
+                        if (attempts === maxAttempts - 1) throw error;
+                    }
+                    attempts++;
+                }
+
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                return "I'm sorry, I encountered an error. Please try again.";
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        };
+
+        const generateReport = async (conversationHistory) => {
+            loadingIndicator.classList.remove('hidden');
+
+            try {
+                const reportSystemPrompt = "You are a medical scribe. Your task is to summarize a patient's reported symptoms from the provided conversation. Provide a concise summary of the key findings in a brief paragraph. Then, organize the remaining details into a structured JSON object with the following keys and values: `summary` (string), `symptoms` (string), `onset` (string), `duration` (string), `severity` (string), `frequency` (string), `character` (string), `location` (string), `triggers_relief` (string), `associated_symptoms` (string), `medical_history` (string), `family_history` (string), `lifestyle_context` (string). For each key, extract the patient's response from the conversation. If a category was not addressed or the patient said they did not know, set the value to 'Not provided' or 'Unknown'. Do not add any analysis, diagnosis, or advice. The report should be easy for a doctor to scan quickly.";
+                
+                const formattedHistory = conversationHistory.map(msg => ({
+                    role: msg.sender === 'user' ? 'user' : 'model',
+                    parts: [{ text: msg.text }]
+                }));
+
+                const payload = {
+                    contents: formattedHistory,
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "summary": { "type": "STRING" },
+                                "symptoms": { "type": "STRING" },
+                                "onset": { "type": "STRING" },
+                                "duration": { "type": "STRING" },
+                                "severity": { "type": "STRING" },
+                                "frequency": { "type": "STRING" },
+                                "character": { "type": "STRING" },
+                                "location": { "type": "STRING" },
+                                "triggers_relief": { "type": "STRING" },
+                                "associated_symptoms": { "type": "STRING" },
+                                "medical_history": { "type": "STRING" },
+                                "family_history": { "type": "STRING" },
+                                "lifestyle_context": { "type": "STRING" }
+                            }
+                        }
+                    },
+                    model: "gemini-2.5-flash-preview-05-20"
+                };
+
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const reportJsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (!reportJsonText) {
+                    throw new Error("API response did not contain valid JSON.");
+                }
+
+                const reportData = JSON.parse(reportJsonText);
+
+                // Use jsPDF to create the PDF file
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                let y = 20;
+
+                doc.setFontSize(22);
+                doc.text("Medical Assistant Report", 10, y);
+                y += 10;
+                doc.setFontSize(12);
+                doc.text("Date: " + new Date().toLocaleDateString(), 10, y);
+                y += 20;
+                
+                // Add the summary paragraph
+                doc.setFontSize(14);
+                doc.setFont("helvetica", "bold");
+                doc.text("Summary:", 10, y);
+                y += 10;
+                doc.setFont("helvetica", "normal");
+                const summaryLines = doc.splitTextToSize(reportData.summary || "Not provided.", 180);
+                doc.text(summaryLines, 10, y);
+                y += (summaryLines.length * 7) + 15;
+
+                // Add the detailed table-like structure
+                doc.setFontSize(14);
+                doc.setFont("helvetica", "bold");
+                doc.text("Detailed Information:", 10, y);
+                y += 10;
+
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "normal");
+
+                const reportKeys = {
+                    "symptoms": "Primary Symptoms",
+                    "onset": "Onset",
+                    "duration": "Duration",
+                    "severity": "Severity (1-10)",
+                    "frequency": "Frequency",
+                    "character": "Character",
+                    "location": "Location",
+                    "triggers_relief": "Triggers/Relief",
+                    "associated_symptoms": "Associated Symptoms",
+                    "medical_history": "Medical History",
+                    "family_history": "Family History",
+                    "lifestyle_context": "Lifestyle/Context"
+                };
+
+                for (const key in reportKeys) {
+                    if (reportKeys.hasOwnProperty(key)) {
+                        // Check if we need a new page
+                        if (y > 270) { 
+                            doc.addPage();
+                            y = 20;
+                        }
+                        doc.setFont("helvetica", "bold");
+                        doc.text(reportKeys[key] + ":", 10, y);
+                        doc.setFont("helvetica", "normal");
+                        const responseText = reportData[key] || "Not provided.";
+                        const responseLines = doc.splitTextToSize(responseText, 140);
+                        doc.text(responseLines, 60, y);
+                        y += (responseLines.length * 7) + 5;
+                    }
+                }
+                
+                doc.save('medical_assistant_report.pdf');
+                showError("PDF Medical Report downloaded successfully!");
+                
+            } catch (error) {
+                console.error("Error generating PDF report:", error);
+                showError("Could not generate PDF report. " + error.message);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        };
+
+        const sendMessage = async () => {
+            const userMessage = messageInput.value.trim();
+            if (userMessage === '') return;
+
+            // Clear input
+            messageInput.value = '';
+            
+            try {
+                const docSnap = await getDoc(conversationDocRef);
+                const currentMessages = docSnap.exists() ? docSnap.data().messages || [] : [];
+                const updatedMessagesWithUser = [...currentMessages, { sender: 'user', text: userMessage }];
+
+                // Display the user's message immediately 
+                await setDoc(conversationDocRef, { messages: updatedMessagesWithUser });
+                
+                // --- STATE MACHINE LOGIC ---
+
+                // Only medical interview state remains
+                if (chatState === 'medical_interview') {
+                    const assistantResponse = await getChatbotResponse(updatedMessagesWithUser);
+                    
+                    if (assistantResponse.includes(REPORT_COMPLETE_TOKEN)) {
+                        // Interview completed, transition to report generation and complete
+                        
+                        // Remove the token from the message
+                        const finalMedicalMessageText = assistantResponse.replace(REPORT_COMPLETE_TOKEN, '').trim();
+                        
+                        // Append the final message
+                        const finalMessages = [...updatedMessagesWithUser, { sender: 'assistant', text: finalMedicalMessageText + REPORT_COMPLETE_TOKEN }];
+                        await setDoc(conversationDocRef, { messages: finalMessages });
+
+                        // Generate and download the Medical Report
+                        await generateReport(finalMessages);
+
+                        // Transition state to complete and lock inputs
+                        await updateChatState('complete');
+
+                    } else {
+                        // Continue medical interview
+                        const finalMessages = [...updatedMessagesWithUser, { sender: 'assistant', text: assistantResponse }];
+                        await setDoc(conversationDocRef, { messages: finalMessages });
+                    }
+                }
+                
+            } catch (error) {
+                console.error("Error in sendMessage:", error);
+                showError("An unexpected error occurred. Please try again.");
+            }
+        };
+
+        // --- Event Listeners ---
+        sendButton.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        clearButton.addEventListener('click', clearConversation);
+
+        // --- Initial setup on page load ---
+        window.onload = () => {
+            setupFirebase();
+        };
+
+    </script>
+</body>
+</html>
