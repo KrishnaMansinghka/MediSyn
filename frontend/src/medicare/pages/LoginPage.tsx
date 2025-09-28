@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stethoscope, Lock, Mail, AlertCircle, CheckCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { mediSynDB } from "@/lib/database/db-utils";
+import { mediSynAuthService } from "@/lib/auth-service";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LoginPage = () => {
@@ -30,35 +30,20 @@ const LoginPage = () => {
       const email = formData.get(`${loginType}-email`) as string;
       const password = formData.get(`${loginType}-password`) as string;
 
-      // Authenticate user
-      const user = await mediSynDB.authenticateUser(email, password);
+      // Authenticate user using PostgreSQL backend
+      const authResult = await mediSynAuthService.login({ email, password });
 
-      if (user) {
-        // Create session
-        const session = await mediSynDB.createSession(user.id, user.role);
-        
-        // Store session in localStorage for frontend use
-        localStorage.setItem('medisyn_session', JSON.stringify({
-          sessionId: session.sessionId,
-          userId: user.id,
-          userType: user.role,
-          userName: user.role === 'doctor' ? user.doctorName : user.name,
-          email: user.email
-        }));
+      setSuccess('Login successful! Redirecting...');
 
-        setSuccess('Login successful! Redirecting...');
+      // Redirect based on user type
+      setTimeout(() => {
+        if (authResult.user_type === 'doctor') {
+          navigate('/medicare/doctor-dashboard');
+        } else {
+          navigate('/medicare/patient-dashboard');
+        }
+      }, 1500);
 
-        // Redirect based on user type
-        setTimeout(() => {
-          if (user.role === 'doctor') {
-            navigate('/medicare/doctor-dashboard');
-          } else {
-            navigate('/medicare/patient-dashboard');
-          }
-        }, 1500);
-      } else {
-        setError('Invalid email or password. Please try again.');
-      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred during login');
     } finally {

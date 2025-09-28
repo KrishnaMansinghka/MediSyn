@@ -1,0 +1,36 @@
+/Users/krishnamansinghka/Documents/MediSyn/backend/auth/auth_api.py:66: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  @validator('role')
+/Users/krishnamansinghka/Documents/MediSyn/backend/auth/auth_api.py:72: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  @validator('clinic_name', 'doctor_name')
+/Users/krishnamansinghka/Documents/MediSyn/backend/auth/auth_api.py:78: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+  @validator('name', 'date_of_birth', 'address')
+INFO:     Will watch for changes in these directories: ['/Users/krishnamansinghka/Documents/MediSyn/backend/auth']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [62082] using StatReload
+🚀 Starting MediSyn Authentication API...
+📊 Database: MediSync on pie2.cp4ss6cyun0x.ap-south-2.rds.amazonaws.com
+🔒 JWT Authentication enabled
+🌐 CORS enabled for frontend
+INFO:     Started server process [62144]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:63262 - "OPTIONS /auth/signup HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:63282 - "OPTIONS /auth/signup HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:63382 - "OPTIONS /auth/signup HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:64356 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64552 - "OPTIONS /auth/signup HTTP/1.1" 400 Bad Request
+WARNING:  StatReload detected changes in 'test_auth_api.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62144]
+INFO:     Started server process [63314]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:65502 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49349 - "OPTIONS /auth/signup HTTP/1.1" 400 Bad Request
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [63314]
+INFO:     Stopping reloader process [62082]

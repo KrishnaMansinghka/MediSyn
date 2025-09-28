@@ -3,15 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   MessageSquare,
   Mic,
   Send,
   Heart,
   ArrowLeft,
-  Bot
+  Bot,
+  Loader2,
+  FileText,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { chatbotService, ChatMessage as ApiChatMessage } from "@/lib/chatbot-service";
+import { getCurrentSession } from "@/lib/auth";
 
 interface ChatMessage {
   id: string;
@@ -22,27 +29,45 @@ interface ChatMessage {
 
 const InitialScreening = () => {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      sender: "ai",
-      content: "Hello Sarah! I'm here to help prepare for your upcoming appointment with Dr. Mitchell. I'll ask you a few questions about your symptoms so the doctor can better understand what you're experiencing. Are you ready to begin?",
-      timestamp: new Date()
-    }
-  ]);
-  
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sessionComplete, setSessionComplete] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const aiResponses = [
-    "Thank you for that information. Can you tell me when you first noticed the chest pain? Was it gradual or did it start suddenly?",
-    "I understand. On a scale of 1 to 10, how would you rate the pain intensity at its worst?",
-    "That's helpful to know. Does the pain get worse with physical activity or does it happen when you're resting too?",
-    "I see. Have you noticed any other symptoms along with the chest pain, such as shortness of breath, nausea, or dizziness?",
-    "Thank you for sharing all this information. Based on what you've told me, I'll make sure Dr. Mitchell has all these details before your appointment. Is there anything else you'd like to mention about your symptoms?",
-    "Perfect! I've recorded all your information for Dr. Mitchell. She'll be well-prepared to discuss your symptoms and develop a treatment plan. You can return to your dashboard now, and I'll see you for your appointment soon!"
-  ];
+  // Initialize session and user info
+  useEffect(() => {
+    const session = getCurrentSession();
+    setCurrentUser(session);
+    initializeChat();
+  }, []);
+
+  const initializeChat = async () => {
+    try {
+      setIsLoading(true);
+      setError("");
+      const response = await chatbotService.startSession();
+      
+      const initialMessage: ChatMessage = {
+        id: "1",
+        sender: "ai",
+        content: response.message,
+        timestamp: new Date()
+      };
+      
+      setMessages([initialMessage]);
+      setIsSessionActive(true);
+    } catch (error) {
+      setError("Failed to start medical screening. Please try again.");
+      console.error("Chat initialization error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,32 +77,79 @@ const InitialScreening = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || !isSessionActive || isLoading) return;
 
-    // Add patient message
+    const userMessage = inputValue.trim();
+    setInputValue("");
+    setIsLoading(true);
+    setError("");
+
+    // Add user message to UI
     const patientMessage: ChatMessage = {
       id: Date.now().toString(),
       sender: "patient",
-      content: inputValue,
+      content: userMessage,
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, patientMessage]);
-    setInputValue("");
 
-    // Simulate AI response after a delay
-    setTimeout(() => {
-      const responseIndex = Math.min(messages.length - 1, aiResponses.length - 1);
+    try {
+      // Send message to AI and get response
+      const response = await chatbotService.sendMessage(userMessage);
+      
+      // Add AI response to UI
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        sender: "ai", 
-        content: aiResponses[responseIndex],
+        sender: "ai",
+        content: response.message,
         timestamp: new Date()
       };
       
       setMessages(prev => [...prev, aiMessage]);
-    }, 1500);
+
+      // Check if session is complete
+      if (response.isComplete) {
+        setSessionComplete(true);
+        setIsSessionActive(false);
+        
+        // Automatically generate report when session completes
+        try {
+          console.log("Session completed, generating report...");
+          const report = await chatbotService.generateReport();
+          if (report) {
+            console.log("Report generated successfully:", report);
+            // Add success message to chat
+            const reportMessage: ChatMessage = {
+              id: (Date.now() + 2).toString(),
+              sender: "ai",
+              content: "✅ Medical report has been generated and saved locally. You can now return to your dashboard.",
+              timestamp: new Date()
+            };
+            setMessages(prev => [...prev, reportMessage]);
+          }
+        } catch (reportError) {
+          console.error("Report generation failed:", reportError);
+          const errorMessage: ChatMessage = {
+            id: (Date.now() + 2).toString(),
+            sender: "ai", 
+            content: "⚠️ Session completed but report generation encountered an issue. Please contact support if needed.",
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+      }
+
+      if (response.error) {
+        setError(response.error);
+      }
+    } catch (error) {
+      setError("Failed to get response. Please try again.");
+      console.error("Send message error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -113,15 +185,35 @@ const InitialScreening = () => {
                   <Heart className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-foreground">Initial Screening</h1>
-                  <p className="text-muted-foreground">Pre-appointment consultation</p>
+                  <h1 className="text-2xl font-bold text-foreground">AI Medical Screening</h1>
+                  <p className="text-muted-foreground">
+                    {currentUser?.userName ? `Hello ${currentUser.userName}` : 'Pre-appointment consultation'}
+                  </p>
                 </div>
               </div>
             </div>
             
-            <Badge className="bg-secondary/10 text-secondary">
-              Dr. Mitchell - 2:30 PM
-            </Badge>
+            <div className="flex items-center space-x-2">
+              {sessionComplete ? (
+                <Badge className="bg-green-100 text-green-800">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Screening Complete
+                </Badge>
+              ) : isSessionActive ? (
+                <Badge className="bg-blue-100 text-blue-800">
+                  <MessageSquare className="w-3 h-3 mr-1" />
+                  In Progress
+                </Badge>
+              ) : (
+                <Badge className="bg-gray-100 text-gray-800">
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Initializing
+                </Badge>
+              )}
+              <Badge className="bg-secondary/10 text-secondary">
+                AI-Powered
+              </Badge>
+            </div>
           </div>
         </div>
       </div>
@@ -176,16 +268,78 @@ const InitialScreening = () => {
                   </div>
                 </div>
               ))}
+              
+              {/* Loading Indicator */}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="flex items-start space-x-3 max-w-[80%]">
+                    <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary-light rounded-full flex items-center justify-center flex-shrink-0">
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="p-4 rounded-2xl bg-muted/50 text-foreground">
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
+                        <span className="text-sm">AI is thinking...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Message */}
+              {error && (
+                <div className="flex justify-center">
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg max-w-md">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="text-sm">Error: {error}</span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2 w-full"
+                      onClick={() => setError(null)}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Completion Notice */}
+            {sessionComplete && (
+              <div className="border-t pt-4 mb-4">
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-medium">Screening Complete!</span>
+                  </div>
+                  <p className="text-sm">
+                    Thank you for providing your health information. Your responses have been recorded
+                    and will be available to Dr. Mitchell during your appointment.
+                  </p>
+                  <Button 
+                    className="mt-3 w-full"
+                    onClick={() => navigate('/patient-dashboard')}
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Return to Dashboard
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Input Area */}
-            <div className="border-t pt-4">
+            <div className={`border-t pt-4 ${sessionComplete ? 'opacity-50 pointer-events-none' : ''}`}>
               <div className="flex items-center space-x-3">
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={toggleListening}
+                  disabled={sessionComplete || isLoading}
                   className={`${
                     isListening 
                       ? 'border-red-500 text-red-500 bg-red-50' 
@@ -200,16 +354,21 @@ const InitialScreening = () => {
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Type your response or click the mic to speak..."
+                    placeholder={sessionComplete ? "Screening completed" : "Type your response or click the mic to speak..."}
+                    disabled={sessionComplete}
                     className="pr-12"
                   />
                   <Button
                     size="icon"
                     onClick={handleSendMessage}
-                    disabled={!inputValue.trim()}
+                    disabled={!inputValue.trim() || isLoading || sessionComplete}
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 bg-primary hover:bg-primary-dark"
                   >
-                    <Send className="w-3 h-3" />
+                    {isLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3" />
+                    )}
                   </Button>
                 </div>
               </div>

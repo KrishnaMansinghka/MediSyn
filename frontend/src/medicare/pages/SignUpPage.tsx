@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Stethoscope, Lock, Mail, User, Building, Calendar, MapPin, AlertCircle, CheckCircle } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { mediSynDB } from "@/lib/database/db-utils";
-import { SignUpFormData } from "@/lib/database/schema";
+import { mediSynAuthService } from "@/lib/auth-service";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SignUpPage = () => {
@@ -38,27 +37,27 @@ const SignUpPage = () => {
 
     try {
       if (signupType === 'doctor') {
-        const signupData: SignUpFormData = {
-          clinicName: formData.get('clinic-name') as string,
-          doctorName: formData.get('doctor-name') as string,
+        const signupData = {
+          clinic_name: formData.get('clinic-name') as string,
+          doctor_name: formData.get('doctor-name') as string,
           email: formData.get('doctor-email') as string,
           password: formData.get('doctor-password') as string,
-          role: 'doctor'
+          role: 'doctor' as const
         };
 
-        await mediSynDB.createDoctor(signupData);
+        await mediSynAuthService.signup(signupData);
         setSuccess('Doctor account created successfully!');
       } else {
-        const signupData: SignUpFormData = {
+        const signupData = {
           name: formData.get('patient-name') as string,
-          dateOfBirth: formData.get('patient-dob') as string,
+          date_of_birth: formData.get('patient-dob') as string,
           address: formData.get('patient-address') as string,
           email: formData.get('patient-email') as string,
           password: formData.get('patient-password') as string,
-          role: 'patient'
+          role: 'patient' as const
         };
 
-        await mediSynDB.createPatient(signupData);
+        await mediSynAuthService.signup(signupData);
         setSuccess('Patient account created successfully!');
       }
 

@@ -1,53 +1,44 @@
 /**
  * Authentication utility functions for session management
+ * Updated to use PostgreSQL backend
  */
+import { mediSynAuthService } from './auth-service';
 
 export interface SessionData {
-  sessionId: string;
-  userId: string;
+  sessionId?: string;
+  userId: number;
   userType: 'doctor' | 'patient';
   userName: string;
   email: string;
+  token: string;
 }
-
-const SESSION_KEY = 'medisyn_session';
 
 /**
  * Get current session from localStorage
  */
 export const getCurrentSession = (): SessionData | null => {
-  try {
-    const sessionData = localStorage.getItem(SESSION_KEY);
-    if (sessionData) {
-      return JSON.parse(sessionData);
-    }
-  } catch (error) {
-    console.error('Error reading session:', error);
-  }
-  return null;
+  return mediSynAuthService.getCurrentSession();
 };
 
 /**
  * Check if user is logged in
  */
 export const isLoggedIn = (): boolean => {
-  return getCurrentSession() !== null;
+  return mediSynAuthService.isLoggedIn();
 };
 
 /**
  * Get current user type
  */
 export const getUserType = (): 'doctor' | 'patient' | null => {
-  const session = getCurrentSession();
-  return session?.userType || null;
+  return mediSynAuthService.getUserType();
 };
 
 /**
  * Logout user by clearing session
  */
-export const logout = (): void => {
-  localStorage.removeItem(SESSION_KEY);
-  // Also clear the database session
+export const logout = async (): Promise<void> => {
+  await mediSynAuthService.logout();
   // This would typically invalidate the session in the database
 };
 

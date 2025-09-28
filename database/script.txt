@@ -1,0 +1,51 @@
+-- Table 1: Patient
+CREATE TABLE Patient (
+    patientID SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    DOB DATE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    address TEXT,
+    password TEXT NOT NULL
+);
+
+-- Table 2: Doctors
+CREATE TABLE Doctors (
+    docID SERIAL PRIMARY KEY,
+    clinic_name TEXT NOT NULL,
+    doctor_name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL
+);
+
+-- Table 3: Appointments
+CREATE TABLE Appointments (
+    appointmentID SERIAL PRIMARY KEY,
+    status INT CHECK (status IN (0, 1, 2)),  -- 0,1,2 as per requirement
+    gender TEXT,
+    height NUMERIC,
+    weight NUMERIC,
+    emergency_contact_number TEXT,
+    insurance_provider TEXT,
+    insurance_plan TEXT,
+    known_allergies TEXT,
+    current_medication TEXT,
+    medical_history TEXT,
+    initial_screening_report_name TEXT,
+    discharge_report_name TEXT,
+    pre_authorization_report_name TEXT
+);
+
+-- Table 4: Doctor-Patient Mapping
+CREATE TABLE DoctorPatient (
+    docID INT REFERENCES Doctors(docID) ON DELETE CASCADE,
+    patientID INT REFERENCES Patient(patientID) ON DELETE CASCADE,
+    patient_status INT DEFAULT 0 CHECK (patient_status IN (0,1,2)),
+    PRIMARY KEY (docID, patientID)
+);
+
+-- Table 5: Patient-Appointment Mapping
+CREATE TABLE PatientAppointment (
+    patientID INT REFERENCES Patient(patientID) ON DELETE CASCADE,
+    appointmentID INT REFERENCES Appointments(appointmentID) ON DELETE CASCADE,
+    PRIMARY KEY (patientID, appointmentID)
+);

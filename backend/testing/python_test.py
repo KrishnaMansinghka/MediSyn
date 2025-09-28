@@ -1,0 +1,231 @@
+import requests
+import json
+import time
+
+# --- Configuration ---
+# NOTE: You MUST replace "YOUR_GEMINI_API_KEY_HERE" with your actual Gemini API Key.
+# Get your key from Google AI Studio.
+API_KEY = "AIzaSyBPcnllCQfx44SljP2cIT6gfjwr7Rnl0r0" 
+MODEL_NAME = "gemini-2.5-flash-preview-05-20"
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={API_KEY}"
+REPORT_COMPLETE_TOKEN = "<<REPORT_COMPLETE>>"
+
+# --- System Prompt (The core logic for the Medical Assistant) ---
+SYSTEM_PROMPT = """
+You are a medical assistant. Your role is to ask clarifying questions about a patient's symptoms. Your responses should be brief, direct, and often in the form of incomplete sentences. Focus on asking one to two questions at a time. Do not provide a diagnosis, medical advice, or treatment recommendations. Your only job is to ask questions to gather more information for a doctor.
+
+You can respond in other languages or rephrase questions if the user requests it. Always maintain your persona and return to the core questioning process afterward.
+
+When a user provides information not directly related to your last question, acknowledge the new information and ask relevant follow-up questions about it first. You can ask the original question again later if it has not been addressed. The ultimate goal is to get a comprehensive report covering all aspects of the patient's condition, medical history, family history, and lifestyle.
+
+Questioning structure (must cover all these areas before completion):
+1.  Main symptoms.
+2.  Onset (When did this begin? How did it start?).
+3.  Duration (How long does it last?).
+4.  Severity (On a scale of 1-10, how bad is it?).
+5.  Frequency (How often does it occur?).
+6.  Character (What does it feel like: sharp, dull, achy, etc.?).
+7.  Location (Where exactly is the symptom located?).
+8.  Triggers/Relief (What makes it better or worse?).
+9.  Associated symptoms (Are there any other symptoms happening at the same time?).
+10. Medical History (Have you had this before? Do you have any other relevant medical conditions?).
+11. Family History (Does anyone in your family have a history of specific conditions like heart disease, diabetes, or cancer?).
+12. Lifestyle/Context (Any recent changes in diet, activity, or environment?).
+
+If the patient's response doesn't directly answer your last question, ask the same question again to get clarification. If they state they don't know, move on to the next logical question in your structure. Your goal is to fill out a complete symptom report. Do not analyze, explain, or suggest treatment.
+
+When you have exhausted all lines of questioning and feel the medical report is comprehensive, respond with the final message followed by the token. Example final message: "Thank you. The medical information is complete. The report is being generated. <<REPORT_COMPLETE>>"
+"""
+
+# --- Report Generation Prompt (for the final summary) ---
+REPORT_PROMPT_TEMPLATE = """
+You are a medical scribe. Your task is to summarize the following patient conversation history.
+
+1.  Provide a concise summary of the key findings in a brief paragraph.
+2.  Then, extract the remaining details into a structured JSON object with the following keys and values: `summary`, `symptoms`, `onset`, `duration`, `severity`, `frequency`, `character`, `location`, `triggers_relief`, `associated_symptoms`, `medical_history`, `family_history`, `lifestyle_context`.
+3.  For each key, extract the patient's response from the conversation history below. If a category was not addressed or the patient said they did not know, set the value to 'Not provided' or 'Unknown'.
+4.  The final output MUST be only the JSON object. Do not include any analysis, diagnosis, or advice outside of the JSON.
+
+CONVERSATION HISTORY:
+---
+{}
+---
+"""
+
+def call_gemini_api(history, report_mode=False):
+    """Handles the API call to the Gemini model with conversation history."""
+    if API_KEY == "YOUR GEMINI API_KEY_HERE":
+        print("\nERROR: Please replace 'YOUR_GEMINI_API_KEY_HERE' in the script with your actual Gemini API Key.")
+        return "Chat functionality disabled due to missing API Key."
+
+    # Format history for API call
+    formatted_history = []
+    for msg in history:
+        # The AI's responses might contain the REPORT_COMPLETE_TOKEN, remove it for context
+        text = msg['text'].replace(REPORT_COMPLETE_TOKEN, '').strip()
+        formatted_history.append({
+            "role": "user" if msg['sender'] == 'user' else "model",
+            "parts": [{"text": text}]
+        })
+
+    # Set up system instructions and generation config based on mode
+    payload = {
+        "contents": formatted_history,
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "model": MODEL_NAME,
+    }
+
+    if report_mode:
+        # For report generation, we override the system prompt and use JSON schema
+        report_system_instruction = REPORT_PROMPT_TEMPLATE.format(json.dumps(history, indent=2))
+        
+        payload["systemInstruction"]["parts"][0]["text"] = report_system_instruction
+        payload["generationConfig"] = {
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "summary": {"type": "STRING"},
+                    "symptoms": {"type": "STRING"},
+                    "onset": {"type": "STRING"},
+                    "duration": {"type": "STRING"},
+                    "severity": {"type": "STRING"},
+                    "frequency": {"type": "STRING"},
+                    "character": {"type": "STRING"},
+                    "location": {"type": "STRING"},
+                    "triggers_relief": {"type": "STRING"},
+                    "associated_symptoms": {"type": "STRING"},
+                    "medical_history": {"type": "STRING"},
+                    "family_history": {"type": "STRING"},
+                    "lifestyle_context": {"type": "STRING"}
+                }
+            }
+        }
+
+    attempts = 0
+    max_attempts = 5
+    while attempts < max_attempts:
+        try:
+            response = requests.post(API_URL, headers={'Content-Type': 'application/json'}, data=json.dumps(payload))
+            
+            if response.status_code == 200:
+                result = response.json()
+                text = result['candidates'][0]['content']['parts'][0]['text']
+                return text
+            elif response.status_code == 429:
+                # Handle rate limiting with exponential backoff
+                delay = 2 ** attempts
+                print(f"Rate limited. Retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                return f"API Error (Status: {response.status_code}): {response.text}"
+        except Exception as e:
+            if attempts == max_attempts - 1:
+                print(f"An unexpected error occurred: {e}")
+                return "An unexpected error occurred."
+        
+        attempts += 1
+    
+    return "Failed to get a response after multiple retries."
+
+def format_and_save_report(raw_json_report, filename="medical_report.txt"):
+    """Formats the JSON report data into a human-readable text file."""
+    try:
+        report_data = json.loads(raw_json_report)
+    except json.JSONDecodeError:
+        print("\n--- REPORT GENERATION FAILED ---")
+        print("Could not parse the AI's response into valid JSON. Printing raw output.")
+        print(raw_json_report)
+        return
+
+    # Prepare data for output
+    detailed_fields = {
+        "symptoms": "Primary Symptoms",
+        "onset": "Onset",
+        "duration": "Duration",
+        "severity": "Severity (1-10)",
+        "frequency": "Frequency",
+        "character": "Character",
+        "location": "Location",
+        "triggers_relief": "Triggers/Relief",
+        "associated_symptoms": "Associated Symptoms",
+        "medical_history": "Medical History",
+        "family_history": "Family History",
+        "lifestyle_context": "Lifestyle/Context"
+    }
+
+    report_output = "=================================================\n"
+    report_output += f"MEDICAL ASSISTANT REPORT - {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+    report_output += "=================================================\n\n"
+    
+    # 1. Summary
+    report_output += "--- SUMMARY OF FINDINGS ---\n"
+    report_output += f"{report_data.get('summary', 'Not provided.')}\n\n"
+    
+    # 2. Detailed Information
+    report_output += "--- DETAILED SYMPTOM DATA ---\n"
+    for key, label in detailed_fields.items():
+        value = report_data.get(key, 'Not provided.')
+        report_output += f"{label:<25}: {value}\n"
+    
+    # Save to file
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(report_output)
+    
+    print(f"\n--- REPORT GENERATED ---\nFile saved successfully as: {filename}")
+    print("========================")
+
+def run_chatbot():
+    """Main function to run the command-line chatbot."""
+    conversation_history = []
+    
+    print("--- Medical Assistant Chatbot (CLI Version) ---")
+    print("Start a conversation by describing your symptoms.")
+    print("Type 'exit' or 'quit' to end the session.")
+    print("---------------------------------------------")
+
+    # Initial greeting
+    initial_message = "Hello. What's been going on with you?"
+    conversation_history.append({'sender': 'assistant', 'text': initial_message})
+    print(f"\nAssistant: {initial_message}")
+
+    while True:
+        try:
+            user_input = input("\nYou: ").strip()
+        except EOFError:
+            break
+        
+        if user_input.lower() in ['exit', 'quit']:
+            break
+
+        if not user_input:
+            continue
+
+        # Add user message to history
+        conversation_history.append({'sender': 'user', 'text': user_input})
+        
+        print("Assistant: Thinking...", end='\r')
+        
+        # Get AI response
+        ai_response = call_gemini_api(conversation_history, report_mode=False)
+        
+        # Check for report completion signal
+        if REPORT_COMPLETE_TOKEN in ai_response:
+            final_message = ai_response.replace(REPORT_COMPLETE_TOKEN, '').strip()
+            print(f"Assistant: {final_message}")
+            
+            # Add final message to history
+            conversation_history.append({'sender': 'assistant', 'text': ai_response})
+            
+            print("\n--- Generating Final Report... ---")
+            raw_json_report = call_gemini_api(conversation_history, report_mode=True)
+            format_and_save_report(raw_json_report)
+            break
+        
+        # Normal conversation flow
+        conversation_history.append({'sender': 'assistant', 'text': ai_response})
+        print(f"Assistant: {ai_response}")
+
+if __name__ == "__main__":
+    # Ensure 'requests' library is installed before running: pip install requests
+    run_chatbot()
