@@ -1,0 +1,68 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2025-09-27",
+    "description": "MediSyn Local Database Storage",
+    "lastModified": "2025-09-27"
+  },
+  "doctors": [
+    {
+      "id": "doc_001",
+      "clinicName": "Downtown Medical Center",
+      "doctorName": "Dr. Sarah Johnson",
+      "email": "sarah.johnson@downtownmedical.com",
+      "password": "$2b$10$encrypted_password_hash",
+      "createdAt": "2025-09-27T10:30:00.000Z",
+      "updatedAt": "2025-09-27T10:30:00.000Z",
+      "isActive": true,
+      "role": "doctor"
+    },
+    {
+      "id": "doc_002",
+      "clinicName": "Family Health Clinic",
+      "doctorName": "Dr. Michael Chen",
+      "email": "michael.chen@familyhealth.com",
+      "password": "$2b$10$encrypted_password_hash",
+      "createdAt": "2025-09-27T11:15:00.000Z",
+      "updatedAt": "2025-09-27T11:15:00.000Z",
+      "isActive": true,
+      "role": "doctor"
+    }
+  ],
+  "patients": [
+    {
+      "id": "pat_001",
+      "name": "John Smith",
+      "dateOfBirth": "1985-03-15",
+      "address": "123 Main Street, Anytown, ST 12345",
+      "email": "john.smith@email.com",
+      "password": "$2b$10$encrypted_password_hash",
+      "createdAt": "2025-09-27T09:45:00.000Z",
+      "updatedAt": "2025-09-27T09:45:00.000Z",
+      "isActive": true,
+      "role": "patient"
+    },
+    {
+      "id": "pat_002",
+      "name": "Emily Davis",
+      "dateOfBirth": "1992-07-22",
+      "address": "456 Oak Avenue, Springfield, ST 67890",
+      "email": "emily.davis@email.com",
+      "password": "$2b$10$encrypted_password_hash",
+      "createdAt": "2025-09-27T14:20:00.000Z",
+      "updatedAt": "2025-09-27T14:20:00.000Z",
+      "isActive": true,
+      "role": "patient"
+    }
+  ],
+  "sessions": [
+    {
+      "sessionId": "sess_001",
+      "userId": "doc_001",
+      "userType": "doctor",
+      "createdAt": "2025-09-27T10:30:00.000Z",
+      "expiresAt": "2025-09-28T10:30:00.000Z",
+      "isActive": true
+    }
+  ]
+}
