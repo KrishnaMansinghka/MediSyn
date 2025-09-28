@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,38 +12,84 @@ import {
   ChevronRight,
   PlayCircle,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MedicalHeader from "../components/MedicalHeader";
 import InitialReportModal from "./InitialReportModal";
-import { usePatientQueue, PatientQueueItem } from "../hooks/usePatientQueue";
+import { 
+  getDoctorPatients, 
+  formatAppointmentTime,
+  getAppointmentButtonText,
+  type PatientData 
+} from "@/lib/appointment-service";
 
 const DoctorDashboard = () => {
   const navigate = useNavigate();
-  const { patientQueue } = usePatientQueue();
+  const [patientQueue, setPatientQueue] = useState<PatientData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatientForReport, setSelectedPatientForReport] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-  const getIntakeStatusBadge = (status: string) => {
+  // Get current user info from localStorage
+  const getCurrentUser = () => {
+    const sessionData = localStorage.getItem('medisyn_session');
+    return sessionData ? JSON.parse(sessionData) : null;
+  };
+
+  const currentUser = getCurrentUser();
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      if (!currentUser || currentUser.userType !== 'doctor') {
+        setError('Please log in as a doctor to view patient queue');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const patientsData = await getDoctorPatients(currentUser.userId);
+        setPatientQueue(patientsData);
+        setError(null);
+      } catch (error) {
+        console.error('Failed to fetch patients:', error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch patients');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPatients();
+  }, [currentUser?.userId]);
+
+  const getPatientStatusBadge = (status: number) => {
     switch (status) {
-      case 'completed':
-        return <Badge className="bg-accent/10 text-accent border-accent/20">✓ Ready for Review</Badge>;
-      case 'in_progress':
-        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">In Progress</Badge>;
+      case 0:
+        return <Badge className="bg-red-100 text-red-800 border-red-200">Prerequisite Required</Badge>;
+      case 1:
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Initial Screening</Badge>;
+      case 2:
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Report Available</Badge>;
       default:
-        return <Badge variant="outline">Not Started</Badge>;
+        return <Badge variant="outline">Unknown Status</Badge>;
     }
   };
 
-  const getEncounterStatusBadge = (status: string) => {
+  const getAppointmentStatusBadge = (status?: number) => {
+    if (status === undefined) return <Badge variant="outline">No Appointment</Badge>;
+    
     switch (status) {
-      case 'completed':
-        return <Badge className="bg-secondary/10 text-secondary border-secondary/20">✓ Encounter Complete</Badge>;
-      case 'in_progress':
-        return <Badge className="bg-primary/10 text-primary border-primary/20">● In Session</Badge>;
+      case 0:
+        return <Badge className="bg-red-100 text-red-800 border-red-200">Prerequisite Required</Badge>;
+      case 1:
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Initial Screening</Badge>;
+      case 2:
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Report Available</Badge>;
       default:
         return <Badge variant="outline">Waiting</Badge>;
     }
@@ -54,64 +100,76 @@ const DoctorDashboard = () => {
     setIsReportModalOpen(true);
   };
 
-  const getActionButton = (patient: PatientQueueItem) => {
-    // Post-encounter actions
-    if (patient.encounterStatus === 'completed') {
-      return (
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline"
-            onClick={() => navigate(`/medicare/pre-auth/${patient.id}`)}
-            className="border-accent/20 text-accent-foreground hover:bg-accent/5"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Generate Pre-Auth Report
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => navigate(`/medicare/view-report/${patient.id}`)}
-            className="border-secondary/20 text-secondary hover:bg-secondary/5"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            View Discharge Report
-          </Button>
-        </div>
-      );
+  const getActionButton = (patient: PatientData) => {
+    // If patient has an appointment, show appointment-based actions
+    if (patient.appointmentid && patient.appointment_status !== undefined) {
+      switch (patient.appointment_status) {
+        case 0:
+          return (
+            <Button 
+              variant="outline"
+              onClick={() => navigate(`/medicare/prerequisite-information`)}
+              className="border-red-500/20 text-red-700 hover:bg-red-50"
+            >
+              <AlertCircle className="w-4 h-4 mr-2" />
+              Prerequisite Required
+            </Button>
+          );
+        case 1:
+          return (
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline"
+                onClick={() => handleViewInitialReport(patient.patientid.toString())}
+                className="border-primary/20 text-primary hover:bg-primary/5"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                View Initial Report
+              </Button>
+              <Button 
+                className="bg-gradient-medical hover:opacity-90 shadow-medical"
+                onClick={() => navigate(`/medicare/pre-encounter/${patient.patientid}`)}
+              >
+                Start Encounter
+                <ChevronRight className="ml-2 w-4 h-4" />
+              </Button>
+            </div>
+          );
+        case 2:
+          return (
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline"
+                onClick={() => navigate(`/medicare/pre-auth/${patient.patientid}`)}
+                className="border-accent/20 text-accent-foreground hover:bg-accent/5"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Generate Pre-Auth Report
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => navigate(`/medicare/view-report/${patient.patientid}`)}
+                className="border-secondary/20 text-secondary hover:bg-secondary/5"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                View Report
+              </Button>
+            </div>
+          );
+      }
     }
     
-    // Pre-encounter actions  
-    if (patient.intakeStatus === 'completed' && patient.encounterStatus === 'waiting') {
-      return (
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline"
-            onClick={() => handleViewInitialReport(patient.id)}
-            className="border-primary/20 text-primary hover:bg-primary/5"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            View Initial Report
-          </Button>
-          <Button 
-            className="bg-gradient-medical hover:opacity-90 shadow-medical"
-            onClick={() => navigate(`/medicare/pre-encounter/${patient.id}`)}
-          >
-            Start Encounter
-            <ChevronRight className="ml-2 w-4 h-4" />
-          </Button>
-        </div>
-      );
-    }
-    
+    // No appointment or unknown status
     return (
       <Button variant="outline" disabled>
         <Clock className="mr-2 w-4 h-4" />
-        Waiting for Intake
+        No Active Appointment
       </Button>
     );
   };
 
   const user = {
-    name: "Dr. Sarah Mitchell",
+    name: currentUser?.userName || "Doctor",
     role: "physician",
     avatar: ""
   };
@@ -217,49 +275,71 @@ const DoctorDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {patientQueue.map((patient) => (
-                  <div 
-                    key={patient.id} 
-                    className="flex items-center justify-between p-4 bg-background rounded-lg border hover:shadow-md transition-all duration-200"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-gradient-medical rounded-full flex items-center justify-center">
-                        <User className="w-6 h-6 text-white" />
-                      </div>
-                      
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3">
-                          <h3 className="font-semibold text-foreground">{patient.name}</h3>
-                          <Badge variant="outline" className="text-xs">
-                            {patient.time}
-                          </Badge>
-                        </div>
-                        
-                        {patient.chiefComplaint && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Chief Complaint: {patient.chiefComplaint}
-                          </p>
-                        )}
-                        
-                        <div className="flex items-center space-x-4 mt-2">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs font-medium text-muted-foreground">Intake:</span>
-                            {getIntakeStatusBadge(patient.intakeStatus)}
+                {loading ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-primary" />
+                    <p className="text-muted-foreground">Loading patient queue...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-8 text-red-600">
+                    <p>{error}</p>
+                  </div>
+                ) : patientQueue.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No patients in queue today</p>
+                  </div>
+                ) : (
+                  patientQueue
+                    .filter(patient => 
+                      !searchQuery || 
+                      patient.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      patient.patient_email.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                    .map((patient) => (
+                      <div 
+                        key={patient.patientid} 
+                        className="flex items-center justify-between p-4 bg-background rounded-lg border hover:shadow-md transition-all duration-200"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-gradient-medical rounded-full flex items-center justify-center">
+                            <User className="w-6 h-6 text-white" />
                           </div>
                           
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs font-medium text-muted-foreground">Encounter:</span>
-                            {getEncounterStatusBadge(patient.encounterStatus)}
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3">
+                              <h3 className="font-semibold text-foreground">{patient.patient_name}</h3>
+                              <Badge variant="outline" className="text-xs">
+                                {patient.display_time || 'No Time'}
+                              </Badge>
+                            </div>
+                            
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {patient.patient_email}
+                            </p>
+                            
+                            <div className="flex items-center space-x-4 mt-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xs font-medium text-muted-foreground">Patient Status:</span>
+                                {getPatientStatusBadge(patient.patient_status)}
+                              </div>
+                              
+                              {patient.appointment_status !== undefined && (
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-xs font-medium text-muted-foreground">Appointment:</span>
+                                  {getAppointmentStatusBadge(patient.appointment_status)}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center space-x-2">
-                      {getActionButton(patient)}
-                    </div>
-                  </div>
-                ))}
+                        <div className="flex items-center space-x-2">
+                          {getActionButton(patient)}
+                        </div>
+                      </div>
+                    ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -316,7 +396,7 @@ const DoctorDashboard = () => {
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         patientId={selectedPatientForReport || ''}
-        patientName={patientQueue.find(p => p.id === selectedPatientForReport)?.name}
+        patientName={patientQueue.find(p => p.patientid.toString() === selectedPatientForReport)?.patient_name}
       />
     </div>
   );

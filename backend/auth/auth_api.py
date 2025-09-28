@@ -123,13 +123,23 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT token"""
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
+        user_id_str: str = payload.get("sub")
         user_type: str = payload.get("user_type")
         
-        if user_id is None or user_type is None:
+        if user_id_str is None or user_type is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Convert user_id back to integer
+        try:
+            user_id = int(user_id_str)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user ID in token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
@@ -141,7 +151,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.JWTError:
+    except (jwt.PyJWTError, jwt.InvalidTokenError, jwt.DecodeError, jwt.InvalidSignatureError, jwt.InvalidSubjectError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -252,9 +262,10 @@ async def login(user_credentials: UserLogin):
         
         # Create access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        user_id = user['docid'] if user_type == 'doctor' else user['patientid']
         access_token = create_access_token(
             data={
-                "sub": user['docid'] if user_type == 'doctor' else user['patientid'],
+                "sub": str(user_id),  # Convert to string for JWT
                 "user_type": user_type,
                 "email": user['email']
             },
@@ -388,6 +399,152 @@ async def get_all_patients(current_user: dict = Depends(verify_token)):
             patient.pop('password', None)
         
         return patients
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+    finally:
+        db.disconnect()
+
+# Appointment endpoints
+@app.get("/api/patient/{patient_id}/appointments")
+async def get_patient_appointments(
+    patient_id: int,
+    current_user: dict = Depends(verify_token)
+):
+    """Get all appointments for a patient"""
+    try:
+        # Verify user is the patient or a doctor
+        if current_user['user_type'] == 'patient' and current_user['user_id'] != patient_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Can only view your own appointments"
+            )
+        
+        db = MediSynDB()
+        if not db.connect():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection failed"
+            )
+        
+        appointments = db.get_patient_appointments_with_doctor(patient_id)
+        return {
+            "appointments": appointments,
+            "total": len(appointments)
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+    finally:
+        db.disconnect()
+
+@app.get("/api/doctor/{doctor_id}/patients")
+async def get_doctor_patients(
+    doctor_id: int,
+    current_user: dict = Depends(verify_token)
+):
+    """Get all patients assigned to a doctor with appointment info"""
+    try:
+        # Verify user is the doctor
+        if current_user['user_type'] == 'doctor' and current_user['user_id'] != doctor_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Can only view your own patients"
+            )
+        
+        db = MediSynDB()
+        if not db.connect():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection failed"
+            )
+        
+        patients = db.get_doctor_patients_with_appointments(doctor_id)
+        return {
+            "patients": patients,
+            "total": len(patients)
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+    finally:
+        db.disconnect()
+
+@app.get("/api/appointment/{appointment_id}")
+async def get_appointment_details(
+    appointment_id: int,
+    current_user: dict = Depends(verify_token)
+):
+    """Get detailed information about a specific appointment"""
+    try:
+        db = MediSynDB()
+        if not db.connect():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection failed"
+            )
+        
+        appointment = db.get_appointment_details(appointment_id)
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found"
+            )
+        
+        return appointment
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+    finally:
+        db.disconnect()
+
+@app.put("/api/appointment/{appointment_id}/status")
+async def update_appointment_status(
+    appointment_id: int,
+    status: int,
+    current_user: dict = Depends(verify_token)
+):
+    """Update appointment status (0=prerequisite, 1=initial screening, 2=report)"""
+    try:
+        if current_user['user_type'] != 'doctor':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Only doctors can update appointment status"
+            )
+        
+        if status not in [0, 1, 2]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid status: Must be 0, 1, or 2"
+            )
+        
+        db = MediSynDB()
+        if not db.connect():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection failed"
+            )
+        
+        success = db.update_appointment_status(appointment_id, status)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found or update failed"
+            )
+        
+        return {"message": "Appointment status updated successfully"}
     
     except Exception as e:
         raise HTTPException(

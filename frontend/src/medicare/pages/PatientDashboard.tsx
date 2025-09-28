@@ -10,57 +10,61 @@ import {
   ChevronRight,
   Heart,
   MessageSquare,
-  ClipboardList
+  ClipboardList,
+  Loader2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-interface Appointment {
-  id: string;
-  doctorName: string;
-  date: Date;
-  time: string;
-  type: string;
-  status: 'upcoming' | 'completed';
-}
+import { useState, useEffect } from "react";
+import { 
+  getPatientAppointments, 
+  formatAppointmentDate, 
+  formatAppointmentTime,
+  getAppointmentButtonText,
+  type AppointmentData 
+} from "@/lib/appointment-service";
 
 const PatientDashboard = () => {
   const navigate = useNavigate();
+  const [appointments, setAppointments] = useState<AppointmentData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const upcomingAppointment: Appointment = {
-    id: "1",
-    doctorName: "Dr. Sarah Mitchell",
-    date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
-    time: "2:30 PM",
-    type: "Follow-up Consultation",
-    status: 'upcoming'
+  // Get current user info from localStorage
+  const getCurrentUser = () => {
+    const sessionData = localStorage.getItem('medisyn_session');
+    return sessionData ? JSON.parse(sessionData) : null;
   };
 
-  const pastAppointments: Appointment[] = [
-    {
-      id: "2",
-      doctorName: "Dr. Sarah Mitchell", 
-      date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
-      time: "10:30 AM",
-      type: "Initial Consultation",
-      status: 'completed'
-    },
-    {
-      id: "3",
-      doctorName: "Dr. Michael Chen",
-      date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 1 month ago
-      time: "3:00 PM", 
-      type: "Annual Physical",
-      status: 'completed'
-    },
-    {
-      id: "4",
-      doctorName: "Dr. Sarah Mitchell",
-      date: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), // 2 months ago
-      time: "11:15 AM",
-      type: "Blood Work Review", 
-      status: 'completed'
-    }
-  ];
+  const currentUser = getCurrentUser();
+
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      if (!currentUser || currentUser.userType !== 'patient') {
+        setError('Please log in as a patient to view appointments');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const appointmentData = await getPatientAppointments(currentUser.userId);
+        setAppointments(appointmentData);
+        setError(null);
+      } catch (error) {
+        console.error('Failed to fetch appointments:', error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch appointments');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAppointments();
+  }, [currentUser?.userId]);
+
+  // Separate upcoming and past appointments
+  const upcomingAppointments = appointments.filter(apt => apt.time_status === 'upcoming');
+  const pastAppointments = appointments.filter(apt => apt.time_status === 'past');
+  const upcomingAppointment = upcomingAppointments[0]; // Get the next upcoming appointment
 
   const handleStartScreening = () => {
     navigate('/medicare/initial-screening');
@@ -87,7 +91,7 @@ const PatientDashboard = () => {
                 <Heart className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-foreground">Welcome back, Krishna</h1>
+                <h1 className="text-3xl font-bold text-foreground">Welcome back, {currentUser?.userName || 'User'}</h1>
                 <p className="text-muted-foreground">Manage your appointments and health records</p>
               </div>
             </div>
@@ -109,46 +113,72 @@ const PatientDashboard = () => {
               <span>Upcoming Appointment</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {upcomingAppointment ? (
-              <div className="bg-gradient-to-r from-primary/5 to-primary-light/5 p-6 rounded-xl border border-primary/10">
+                    <CardContent>
+            {loading ? (
+              <div className="text-center py-8">
+                <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-primary" />
+                <p className="text-muted-foreground">Loading appointments...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-8 text-red-600">
+                <p>{error}</p>
+              </div>
+            ) : upcomingAppointment ? (
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
                 <div className="flex items-center justify-between">
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
                       <User className="w-4 h-4 text-primary" />
-                      <span className="font-semibold text-foreground">{upcomingAppointment.doctorName}</span>
+                      <span className="font-semibold text-foreground">
+                        {upcomingAppointment.doctor_name} (Status: {upcomingAppointment.appointment_status})
+                      </span>
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                       <span className="flex items-center">
                         <Calendar className="w-4 h-4 mr-1" />
-                        {upcomingAppointment.date.toLocaleDateString()}
+                        {formatAppointmentDate(upcomingAppointment.appointment_date)}
                       </span>
                       <span className="flex items-center">
                         <Clock className="w-4 h-4 mr-1" />
-                        {upcomingAppointment.time}
+                        {formatAppointmentTime(upcomingAppointment.appointment_time)}
                       </span>
                     </div>
-                    <Badge className="bg-primary/10 text-primary">{upcomingAppointment.type}</Badge>
+                    <Badge className="bg-primary/10 text-primary">{upcomingAppointment.clinic_name}</Badge>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button 
-                      onClick={handlePrerequisiteInfo}
-                      variant="outline"
-                      className="border-primary/20 text-primary hover:bg-primary/5"
-                    >
-                      <ClipboardList className="w-4 h-4 mr-2" />
-                      Complete Prerequisite Information
-                    </Button>
+                    {upcomingAppointment.appointment_status === 0 && (
+                      <Button 
+                        onClick={handlePrerequisiteInfo}
+                        variant="outline"
+                        className="border-primary/20 text-primary hover:bg-primary/5"
+                      >
+                        <ClipboardList className="w-4 h-4 mr-2" />
+                        {getAppointmentButtonText(upcomingAppointment.appointment_status)}
+                      </Button>
+                    )}
                     
-                    <Button 
-                      onClick={handleStartScreening}
-                      className="bg-primary hover:bg-primary-dark"
-                    >
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Start Initial Screening
-                      <ChevronRight className="w-4 h-4 ml-2" />
-                    </Button>
+                    {upcomingAppointment.appointment_status === 1 && (
+                      <Button 
+                        onClick={handleStartScreening}
+                        className="bg-primary hover:bg-primary-dark"
+                      >
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        {getAppointmentButtonText(upcomingAppointment.appointment_status)}
+                        <ChevronRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    )}
+                    
+                    {upcomingAppointment.appointment_status === 2 && (
+                      <Button 
+                        onClick={() => handleViewReport(upcomingAppointment.appointmentid.toString())}
+                        className="bg-secondary hover:bg-secondary-dark"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        {getAppointmentButtonText(upcomingAppointment.appointment_status)}
+                        <ChevronRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -173,38 +203,54 @@ const PatientDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {pastAppointments.map((appointment) => (
-                <div key={appointment.id} className="p-4 border border-border rounded-xl hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-medium text-foreground">{appointment.doctorName}</span>
-                      </div>
-                      <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                        <span className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {appointment.date.toLocaleDateString()}
-                        </span>
-                        <span className="flex items-center">
-                          <Clock className="w-4 h-4 mr-1" />
-                          {appointment.time}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className="text-xs">{appointment.type}</Badge>
-                    </div>
-
-                    <Button 
-                      variant="outline" 
-                      onClick={() => handleViewReport(appointment.id)}
-                      className="border-secondary/20 text-secondary hover:bg-secondary/5"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      View Report
-                    </Button>
-                  </div>
+              {loading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-primary" />
+                  <p className="text-muted-foreground">Loading appointments...</p>
                 </div>
-              ))}
+              ) : error ? (
+                <div className="text-center py-8 text-red-600">
+                  <p>{error}</p>
+                </div>
+              ) : pastAppointments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No past appointments found</p>
+                </div>
+              ) : (
+                pastAppointments.map((appointment) => (
+                  <div key={appointment.appointmentid} className="p-4 border border-border rounded-xl hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium text-foreground">{appointment.doctor_name}</span>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                          <span className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            {formatAppointmentDate(appointment.appointment_date)}
+                          </span>
+                          <span className="flex items-center">
+                            <Clock className="w-4 h-4 mr-1" />
+                            {formatAppointmentTime(appointment.appointment_time)}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">{appointment.clinic_name}</Badge>
+                      </div>
+
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleViewReport(appointment.appointmentid.toString())}
+                        className="border-secondary/20 text-secondary hover:bg-secondary/5"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        {getAppointmentButtonText(appointment.appointment_status)}
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

@@ -49,3 +49,12 @@ CREATE TABLE PatientAppointment (
     appointmentID INT REFERENCES Appointments(appointmentID) ON DELETE CASCADE,
     PRIMARY KEY (patientID, appointmentID)
 );
+
+-- Table 6
+CREATE TABLE Info (
+    infoID SERIAL PRIMARY KEY,
+    patientID INT REFERENCES Patient(patientID) ON DELETE CASCADE,
+    docID INT REFERENCES Doctors(docID) ON DELETE CASCADE,
+    appointmentID INT REFERENCES Appointments(appointmentID) ON DELETE CASCADE,
+    UNIQUE(patientID, docID, appointmentID)
+);

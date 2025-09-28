@@ -230,6 +230,94 @@ class MediSynDB:
             VALUES (%s, %s);
         """
         return self.execute_update(query, (patient_id, appointment_id))
+    
+    def get_patient_appointments_with_doctor(self, patient_id: int) -> List[Dict[str, Any]]:
+        """Get all appointments for a patient with doctor information"""
+        query = """
+            SELECT 
+                a.appointmentID,
+                a.status as appointment_status,
+                d.doctor_name,
+                d.clinic_name,
+                -- Simulate appointment date and time for demo
+                CURRENT_DATE as appointment_date,
+                '09:00:00'::TIME as appointment_time,
+                -- Status 0,1 = upcoming, Status 2 = past
+                CASE 
+                    WHEN a.status IN (0, 1) THEN 'upcoming'
+                    WHEN a.status = 2 THEN 'past'
+                    ELSE 'unknown'
+                END as time_status
+            FROM Appointments a
+            JOIN PatientAppointment pa ON a.appointmentID = pa.appointmentID
+            JOIN DoctorPatient dp ON pa.patientID = dp.patientID
+            JOIN Doctors d ON dp.docID = d.docID
+            WHERE pa.patientID = %s
+            ORDER BY a.appointmentID DESC;
+        """
+        return self.execute_query(query, (patient_id,))
+    
+    def get_doctor_patients_with_appointments(self, doctor_id: int) -> List[Dict[str, Any]]:
+        """Get all patients assigned to a doctor with their latest appointment info"""
+        query = """
+            SELECT DISTINCT
+                p.patientID,
+                p.name as patient_name,
+                p.email as patient_email,
+                dp.patient_status,
+                a.appointmentID,
+                a.status as appointment_status,
+                '09:00 AM' as display_time,
+                -- Status 0,1 = upcoming, Status 2 = past
+                CASE 
+                    WHEN a.status IN (0, 1) THEN 'upcoming'
+                    WHEN a.status = 2 THEN 'past'
+                    ELSE 'unknown'
+                END as time_status
+            FROM Patient p
+            JOIN DoctorPatient dp ON p.patientID = dp.patientID
+            LEFT JOIN PatientAppointment pa ON p.patientID = pa.patientID
+            LEFT JOIN Appointments a ON pa.appointmentID = a.appointmentID
+            WHERE dp.docID = %s
+            ORDER BY p.name ASC;
+        """
+        return self.execute_query(query, (doctor_id,))
+    
+    def get_appointment_details(self, appointment_id: int) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a specific appointment"""
+        query = """
+            SELECT 
+                a.*,
+                p.name as patient_name,
+                p.email as patient_email,
+                d.doctor_name,
+                d.clinic_name,
+                CURRENT_DATE as appointment_date,
+                '09:00:00'::TIME as appointment_time
+            FROM Appointments a
+            JOIN PatientAppointment pa ON a.appointmentID = pa.appointmentID
+            JOIN Patient p ON pa.patientID = p.patientID
+            JOIN DoctorPatient dp ON p.patientID = dp.patientID
+            JOIN Doctors d ON dp.docID = d.docID
+            WHERE a.appointmentID = %s;
+        """
+        results = self.execute_query(query, (appointment_id,))
+        return results[0] if results else None
+    
+    def update_appointment_status(self, appointment_id: int, status: int) -> bool:
+        """Update appointment status"""
+        query = """
+            UPDATE Appointments 
+            SET status = %s 
+            WHERE appointmentID = %s;
+        """
+        return self.execute_update(query, (status, appointment_id))
+    
+    def get_doctor_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Get doctor by email"""
+        query = "SELECT * FROM Doctors WHERE email = %s;"
+        results = self.execute_query(query, (email,))
+        return results[0] if results else None
 
 # Example usage
 if __name__ == "__main__":
