@@ -414,9 +414,6 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-.download-section {
-    text-align: center;
-}
 
 .footer {
     text-align: center;
@@ -472,86 +469,6 @@ body {
     100% { transform: scale(1); }
 }
 
-/* Text Input Section Styles */
-.text-input-section {
-    margin-bottom: 30px;
-}
-
-.section-description {
-    font-size: 0.9rem;
-    color: #666;
-    margin-top: 5px;
-    font-style: italic;
-}
-
-.text-input-content {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 20px;
-    border: 2px dashed #dee2e6;
-}
-
-.input-group {
-    margin-bottom: 15px;
-}
-
-.input-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-    color: #333;
-}
-
-.speaker-select {
-    width: 100%;
-    max-width: 200px;
-    padding: 8px 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    background: white;
-    transition: border-color 0.3s ease;
-}
-
-.speaker-select:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.text-input-group {
-    margin-bottom: 15px;
-}
-
-.text-input {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-family: 'Inter', sans-serif;
-    line-height: 1.5;
-    resize: vertical;
-    min-height: 120px;
-    transition: border-color 0.3s ease;
-}
-
-.text-input:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.text-input::placeholder {
-    color: #999;
-    font-style: italic;
-}
-
-.text-input-controls {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
 
 /* Medical Report Styles */
 .medical-report-section, .similar-cases-section {

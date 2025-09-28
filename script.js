@@ -29,8 +29,6 @@ class AudioTranscriptionApp {
     initializeElements() {
         this.recordBtn = document.getElementById('recordBtn');
         this.stopBtn = document.getElementById('stopBtn');
-        this.playBtn = document.getElementById('playBtn');
-        this.downloadBtn = document.getElementById('downloadBtn');
         this.recordingIndicator = document.getElementById('recordingIndicator');
         this.timer = document.getElementById('timer');
         this.transcriptionResult = document.getElementById('transcriptionResult');
@@ -41,18 +39,11 @@ class AudioTranscriptionApp {
         
         // Medical report elements
         this.viewReportBtn = document.getElementById('viewReportBtn');
-        this.finalReportBtn = document.getElementById('finalReportBtn');
         this.previewReportBtn = document.getElementById('previewReportBtn');
-        this.generatePdfBtn = document.getElementById('generatePdfBtn');
         this.resetReportBtn = document.getElementById('resetReportBtn');
         this.reportDisplay = document.getElementById('reportDisplay');
         this.similarCasesDisplay = document.getElementById('similarCasesDisplay');
         
-        // Text input elements
-        this.textInput = document.getElementById('textInput');
-        this.speakerSelect = document.getElementById('speakerSelect');
-        this.processTextBtn = document.getElementById('processTextBtn');
-        this.clearTextBtn = document.getElementById('clearTextBtn');
         
         // Modal elements
         this.reportPreviewModal = document.getElementById('reportPreviewModal');
@@ -91,19 +82,12 @@ class AudioTranscriptionApp {
     setupEventListeners() {
         this.recordBtn.addEventListener('click', () => this.startRecording());
         this.stopBtn.addEventListener('click', () => this.stopRecording());
-        this.playBtn.addEventListener('click', () => this.playRecording());
-        this.downloadBtn.addEventListener('click', () => this.downloadAudio());
         
         // Medical report event listeners
         this.viewReportBtn.addEventListener('click', () => this.viewCurrentReport());
-        this.finalReportBtn.addEventListener('click', () => this.generateFinalReport());
         this.previewReportBtn.addEventListener('click', () => this.previewPdfReport());
-        this.generatePdfBtn.addEventListener('click', () => this.generatePdfReport());
         this.resetReportBtn.addEventListener('click', () => this.resetReport());
         
-        // Text input event listeners
-        this.processTextBtn.addEventListener('click', () => this.processTextInput());
-        this.clearTextBtn.addEventListener('click', () => this.clearTextInput());
         
         // Modal event listeners
         this.setupModalEventListeners();
@@ -254,18 +238,10 @@ class AudioTranscriptionApp {
         }
     }
 
-    playRecording() {
-        if (this.audioUrl) {
-            const audio = new Audio(this.audioUrl);
-            audio.play();
-        }
-    }
 
     updateRecordingUI() {
         this.recordBtn.disabled = this.isRecording;
         this.stopBtn.disabled = !this.isRecording;
-        this.playBtn.disabled = !this.audioUrl;
-        this.downloadBtn.disabled = !this.audioBlob;
 
         if (this.isRecording) {
             this.recordingIndicator.classList.add('active');
@@ -736,23 +712,6 @@ class AudioTranscriptionApp {
         }
     }
 
-    async generateFinalReport() {
-        try {
-            const response = await fetch('/api/final-report');
-            const data = await response.json();
-            
-            if (data.success) {
-                // Display final report in a modal or new window
-                this.displayFinalReport(data.report);
-                this.showSuccess('Final report generated successfully');
-            } else {
-                this.showError('Failed to generate final report');
-            }
-        } catch (error) {
-            console.error('Error generating final report:', error);
-            this.showError('Failed to generate final report');
-        }
-    }
 
     async previewPdfReport() {
         try {
@@ -880,69 +839,6 @@ class AudioTranscriptionApp {
         this.currentReportText = reportText;
     }
 
-    async generatePdfReport() {
-        try {
-            // Get the current transcription
-            const transcription = this.finalTranscript || this.interimTranscript;
-            
-            if (!transcription || transcription.trim() === '') {
-                this.showError('No transcription available to generate PDF report');
-                return;
-            }
-
-            // Show loading state
-            this.generatePdfBtn.disabled = true;
-            this.generatePdfBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Generating PDF...</span>';
-
-            // Include edited discharge summary if available
-            const dischargeText = this.getFormattedDischargeText();
-            
-            const response = await fetch('/api/generate-pdf-report', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    transcription: transcription,
-                    speaker: 'Doctor/Patient',
-                    dischargeSummary: dischargeText
-                })
-            });
-
-            if (response.ok) {
-                // Create blob from response
-                const blob = await response.blob();
-                
-                // Determine file extension based on content type
-                const contentType = response.headers.get('content-type');
-                const isPDF = contentType && contentType.includes('application/pdf');
-                const extension = isPDF ? 'pdf' : 'txt';
-                
-                // Create download link
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `medical_report_${new Date().toISOString().split('T')[0]}.${extension}`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
-                const fileType = isPDF ? 'PDF' : 'text';
-                this.showSuccess(`${fileType} report generated and downloaded successfully`);
-            } else {
-                const errorData = await response.json();
-                this.showError(`Failed to generate PDF: ${errorData.error || 'Unknown error'}`);
-            }
-        } catch (error) {
-            console.error('Error generating PDF report:', error);
-            this.showError('Failed to generate PDF report');
-        } finally {
-            // Reset button state
-            this.generatePdfBtn.disabled = false;
-            this.generatePdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i> <span>Generate PDF</span>';
-        }
-    }
 
     displayFinalReport(report) {
         // Create a comprehensive final report display
@@ -1495,18 +1391,6 @@ class AudioTranscriptionApp {
         return this.formatTextToHtml(this.currentDischargeText);
     }
 
-    downloadAudio() {
-        if (this.audioBlob) {
-            const url = URL.createObjectURL(this.audioBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    }
 
     showLoading(show) {
         if (show) {
@@ -1568,98 +1452,6 @@ class AudioTranscriptionApp {
         }, 3000);
     }
 
-    // Text Input Methods
-    async processTextInput() {
-        const text = this.textInput.value.trim();
-        const speaker = this.speakerSelect.value;
-        
-        if (!text) {
-            this.showNotification('Please enter some text to process', 'warning');
-            return;
-        }
-        
-        try {
-            // Disable button and show loading
-            this.processTextBtn.disabled = true;
-            this.processTextBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Processing...</span>';
-            
-            // Send text to server for processing
-            const response = await fetch('/api/process-text', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    text: text,
-                    speaker: speaker
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                // Update transcription display
-                this.updateTranscriptionDisplay(text, speaker);
-                
-                // Update medical report
-                if (data.medicalReport) {
-                    this.updateMedicalReport(data.medicalReport);
-                }
-                
-                // Update similar cases
-                if (data.similarCases) {
-                    this.updateSimilarCases(data.similarCases);
-                }
-                
-                this.showNotification('Text processed successfully!', 'success');
-            } else {
-                throw new Error(data.error || 'Failed to process text');
-            }
-            
-        } catch (error) {
-            console.error('Error processing text:', error);
-            this.showNotification('Error processing text: ' + error.message, 'error');
-        } finally {
-            // Re-enable button
-            this.processTextBtn.disabled = false;
-            this.processTextBtn.innerHTML = '<i class="fas fa-paper-plane"></i><span>Process Text</span>';
-        }
-    }
-    
-    clearTextInput() {
-        this.textInput.value = '';
-        this.speakerSelect.value = 'Patient';
-        this.textInput.focus();
-    }
-    
-    updateTranscriptionDisplay(text, speaker) {
-        const timestamp = new Date().toLocaleTimeString();
-        const speakerClass = speaker.toLowerCase().replace(' ', '-');
-        
-        const transcriptionHTML = `
-            <div class="transcription-item ${speakerClass}">
-                <div class="transcription-header">
-                    <span class="speaker">${speaker}</span>
-                    <span class="timestamp">${timestamp}</span>
-                </div>
-                <div class="transcription-text">${text}</div>
-            </div>
-        `;
-        
-        // Add to transcription result
-        if (this.transcriptionResult.querySelector('.placeholder')) {
-            this.transcriptionResult.innerHTML = transcriptionHTML;
-        } else {
-            this.transcriptionResult.insertAdjacentHTML('beforeend', transcriptionHTML);
-        }
-        
-        // Scroll to bottom
-        this.transcriptionResult.scrollTop = this.transcriptionResult.scrollHeight;
-    }
 }
 
 // Initialize the app when the DOM is loaded

@@ -26,10 +26,6 @@
                         <i class="fas fa-stop"></i>
                         <span>Stop Transcription</span>
                     </button>
-                    <button id="playBtn" class="btn btn-tertiary" disabled>
-                        <i class="fas fa-play"></i>
-                        <span>Play Recording</span>
-                    </button>
                 </div>
 
                 <div class="recording-status">
@@ -68,44 +64,6 @@
                 </div>
             </div>
 
-            <div class="text-input-section">
-                <div class="section-header">
-                    <h2><i class="fas fa-keyboard"></i> Text Input (Alternative)</h2>
-                    <p class="section-description">Type or paste text directly as an alternative to live transcription</p>
-                </div>
-
-                <div class="text-input-content">
-                    <div class="input-group">
-                        <label for="speakerSelect">Speaker:</label>
-                        <select id="speakerSelect" class="speaker-select">
-                            <option value="Patient">Patient</option>
-                            <option value="Doctor">Doctor</option>
-                            <option value="Speaker 1">Speaker 1</option>
-                            <option value="Speaker 2">Speaker 2</option>
-                        </select>
-                    </div>
-                    
-                    <div class="text-input-group">
-                        <textarea 
-                            id="textInput" 
-                            class="text-input" 
-                            placeholder="Enter medical conversation text here... (e.g., 'Patient complains of chest pain that started 2 days ago. Family history of diabetes in mother.')"
-                            rows="6"
-                        ></textarea>
-                    </div>
-                    
-                    <div class="text-input-controls">
-                        <button id="processTextBtn" class="btn btn-primary">
-                            <i class="fas fa-paper-plane"></i>
-                            <span>Process Text</span>
-                        </button>
-                        <button id="clearTextBtn" class="btn btn-secondary">
-                            <i class="fas fa-eraser"></i>
-                            <span>Clear</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
 
             <div class="medical-report-section">
                 <div class="section-header">
@@ -115,17 +73,9 @@
                             <i class="fas fa-sync-alt"></i>
                             <span>Update Report</span>
                         </button>
-                        <button id="finalReportBtn" class="btn btn-success">
-                            <i class="fas fa-file-export"></i>
-                            <span>Final Report</span>
-                        </button>
                         <button id="previewReportBtn" class="btn btn-warning">
                             <i class="fas fa-eye"></i>
                             <span>Preview Report</span>
-                        </button>
-                        <button id="generatePdfBtn" class="btn btn-info">
-                            <i class="fas fa-file-pdf"></i>
-                            <span>Generate PDF</span>
                         </button>
                         <button id="generateDischargeBtn" class="btn btn-success" style="display: none;">
                             <i class="fas fa-file-medical"></i>
@@ -157,12 +107,6 @@
                 </div>
             </div>
 
-            <div class="download-section">
-                <button id="downloadBtn" class="btn btn-outline" disabled>
-                    <i class="fas fa-download"></i>
-                    <span>Download Audio</span>
-                </button>
-            </div>
         </main>
 
         <footer class="footer">
