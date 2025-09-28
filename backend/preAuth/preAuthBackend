@@ -1,0 +1,410 @@
+import requests
+import json
+import base64
+import time
+from datetime import datetime
+from typing import Dict, Any
+
+# --- CONFIGURATION ---
+# IMPORTANT: Replace the placeholder below with your actual Gemini API key.
+# This key is necessary for the script to analyze the PDF and conversation text.
+GEMINI_API_KEY = "YOUR_API_KEY_HERE" 
+GEMINI_MODEL_NAME = "gemini-2.5-flash-preview-05-20"
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL_NAME}:generateContent"
+
+# --- STATIC DATA (Hardcoded Insurance/Provider Info) ---
+
+def get_static_data() -> Dict[str, Any]:
+    """Returns hardcoded provider, insurance, and boilerplate request data."""
+    return {
+        'date': datetime.now().strftime("%m/%d/%Y"),
+        # 2. INSURANCE INFORMATION (Fake Data)
+        'primaryInsuranceCompany': 'Global Health Network (FAKE)',
+        'insurancePlanName': 'PPO Elite Plan (FAKE)',
+        'groupNumber': 'FAKE-GRP-9012',
+        'policyNumber': 'FAKE-POL-3456',
+        'insurancePhonePA': '(800) 555-1212',
+        'secondaryInsurance': '', 
+        # 3. PROVIDER INFORMATION (Fake Data)
+        'requestingProviderName': 'Dr. Anya Sharma, MD (FAKE)',
+        'npiNumber': '1234567890 (FAKE)',
+        'specialty': 'Oncology',
+        'practiceFacilityName': 'City Cancer Center (FAKE)',
+        'providerAddress': '123 Health Ave, Suite 400, Anytown, CA 90210',
+        'providerPhone': '(555) 111-2222',
+        'providerFax': '(555) 111-3333',
+        'contactPerson': 'Jane Doe, PA Coordinator',
+        # 4. REQUEST DETAILS (Type of Request)
+        'typeOfRequest': 'New Authorization',
+        # 5. REQUESTED SERVICE/MEDICATION (Fields the AI often cannot extract)
+        'cptCode': '[BLANK]',
+        'dosageQuantity': '[BLANK]', 
+        'frequencyDuration': '[BLANK]', 
+        'routeOfAdministration': '[BLANK]',
+    }
+
+# --- GEMINI API CALL FUNCTION ---
+
+def call_gemini_api(pdf_path: str, conversation_text: str) -> Dict[str, str]:
+    """
+    Sends PDF and conversation text to the Gemini API for structured data extraction.
+    Implements exponential backoff for retries.
+    """
+    if GEMINI_API_KEY == "YOUR_API_KEY_HERE":
+        raise ValueError("GEMINI_API_KEY must be set before running the script.")
+
+    # 1. Read PDF and convert to Base64
+    try:
+        with open(pdf_path, "rb") as pdf_file:
+            pdf_base64 = base64.b64encode(pdf_file.read()).decode('utf-8')
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Error: PDF file not found at path: {pdf_path}")
+
+    # 2. Define the System Instruction and User Query
+    system_prompt = (
+        "You are a highly efficient medical data extraction and summarization assistant. Your task is to "
+        "analyze a conversation transcript and a patient's symptoms report (PDF content) to extract specific "
+        "structured data points for a Prior Authorization Request Form. If a field is not found, the value MUST be the empty string \"\"."
+    )
+    user_query = f"Extract structured data from the following inputs.\n\n**Conversation Transcript:**\n---\n{conversation_text}\n---\n\nGenerate the structured JSON output based on all available information."
+
+    # 3. Define the Structured Schema
+    response_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "patientName": {"type": "STRING", "description": "Full name of the patient. Blank if not found."},
+            "patientDOB": {"type": "STRING", "description": "Patient's Date of Birth in MM/DD/YYYY format. Blank if not found."},
+            "patientPhone": {"type": "STRING", "description": "Patient's phone number. Blank if not found."},
+            "icd10": {"type": "STRING", "description": "The primary ICD-10 code for the condition. Blank if not found."},
+            "diagnosisDescription": {"type": "STRING", "description": "The full medical diagnosis name. Blank if not found."},
+            "requestedServiceMedication": {"type": "STRING", "description": "The name of the drug or procedure being requested. Blank if not found."},
+            "expectedDateOfService": {"type": "STRING", "description": "The date of the requested service, in MM/DD/YYYY format. Blank if not found."},
+            "relevantClinicalFindings": {"type": "STRING", "description": "A summarized list of current symptoms, physical exam findings, and lab/imaging results. Blank if not found."},
+            "previousTreatmentsTried": {"type": "STRING", "description": "A list of previous treatments tried and reasons for failure/discontinuation. Blank if not found."},
+            "justificationForService": {"type": "STRING", "description": "A detailed justification for the medical necessity of the requested service/medication. Blank if not found."},
+            "placeOfService": {"type": "STRING", "description": "The place of service (Office, Outpatient, Inpatient, Home). Blank if not found."}
+        },
+        "required": ["patientName", "patientDOB", "patientPhone", "icd10", "diagnosisDescription", "requestedServiceMedication", "expectedDateOfService", "relevantClinicalFindings", "previousTreatmentsTried", "justificationForService", "placeOfService"]
+    }
+
+    # 4. Construct the Payload
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": user_query},
+                    {
+                        "inlineData": {
+                            "mimeType": "application/pdf",
+                            "data": pdf_base64
+                        }
+                    }
+                ]
+            }
+        ],
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": response_schema,
+        },
+    }
+
+    # 5. Send Request with Exponential Backoff
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            headers = {'Content-Type': 'application/json'}
+            response = requests.post(f"{API_URL}?key={GEMINI_API_KEY}", headers=headers, json=payload)
+            response.raise_for_status() # Raise exception for bad status codes (4xx or 5xx)
+
+            result = response.json()
+            json_text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text')
+
+            if not json_text:
+                raise ValueError("API response was missing expected JSON content.")
+
+            # Attempt to parse the JSON text
+            extracted_data = json.loads(json_text)
+            
+            # Ensure all keys exist and convert empty strings to placeholder if needed
+            for key, value in extracted_data.items():
+                if value == "":
+                    extracted_data[key] = "[BLANK]"
+
+            return extracted_data
+
+        except requests.exceptions.RequestException as e:
+            print(f"Attempt {attempt + 1} failed (Request Error): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"Attempt {attempt + 1} failed (Parsing Error): {e}")
+            print(f"Raw Response Text (Attempt {attempt + 1}):\n{json_text[:500]}...")
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+
+    # Should be unreachable if max_retries > 0
+    raise Exception("Failed to call Gemini API after all retries.")
+
+
+# --- DOCUMENT GENERATION FUNCTIONS ---
+
+def generate_structured_form(data: Dict[str, str]) -> str:
+    """Generates the content for the structured PA form in Markdown format."""
+    s_data = get_static_data()
+    merged_data = {**s_data, **data}
+
+    # Helper function for safe access and placeholder logic
+    def val(key):
+        return merged_data.get(key, '[BLANK]') if merged_data.get(key, '').strip() else '[BLANK]'
+
+    form_content = f"""# PRIOR AUTHORIZATION REQUEST FORM
+
+---
+## 1. PATIENT INFORMATION
+
+| Field | Value |
+| :--- | :--- |
+| Patient Name | {val('patientName')} |
+| Date of Birth (MM/DD/YYYY) | {val('patientDOB')} |
+| Patient ID/Insurance Member ID (FAKE) | {val('policyNumber')} |
+| Phone Number | {val('patientPhone')} |
+| Address | [BLANK] |
+
+---
+## 2. INSURANCE INFORMATION (FAKE DATA)
+
+| Field | Value |
+| :--- | :--- |
+| Primary Insurance Company | {val('primaryInsuranceCompany')} |
+| Insurance Plan Name | {val('insurancePlanName')} |
+| Group Number | {val('groupNumber')} |
+| Policy Number | {val('policyNumber')} |
+| Insurance Phone (PA Dept) | {val('insurancePhonePA')} |
+| Secondary Insurance | {val('secondaryInsurance')} |
+
+---
+## 3. PROVIDER INFORMATION (FAKE DATA)
+
+| Field | Value |
+| :--- | :--- |
+| Requesting Provider Name | {val('requestingProviderName')} |
+| NPI Number | {val('npiNumber')} |
+| Specialty | {val('specialty')} |
+| Practice / Facility Name | {val('practiceFacilityName')} |
+| Address | {val('providerAddress')} |
+| Phone Number | {val('providerPhone')} |
+| Fax Number | {val('providerFax')} |
+| Contact Person | {val('contactPerson')} |
+
+---
+## 4. REQUEST DETAILS
+
+| Field | Value |
+| :--- | :--- |
+| Type of Request | {val('typeOfRequest')} |
+| Date of Request | {val('date')} |
+| Expected Date of Service (First Dose) | {val('expectedDateOfService')} |
+| Place of Service | **{val('placeOfService')}** |
+
+---
+## 5. REQUESTED SERVICE/MEDICATION
+
+| Field | Value |
+| :--- | :--- |
+| Procedure / Medication Name | {val('requestedServiceMedication')} |
+| CPT/HCPCS/ NDC Code(s) | {val('cptCode')} |
+| Dosage / Quantity (if drug) | {val('dosageQuantity')} |
+| Frequency / Duration | {val('frequencyDuration')} |
+| Route of Administration (if drug) | {val('routeOfAdministration')} |
+
+---
+## 6. CLINICAL INFORMATION
+
+### Diagnosis
+* **Diagnosis Code(s) (ICD-10):** {val('icd10')}
+* **Diagnosis Description(s):** {val('diagnosisDescription')}
+
+### Relevant Clinical Findings / Summary
+{val('relevantClinicalFindings')}
+
+### Previous Treatments / Therapies Tried
+{val('previousTreatmentsTried')}
+
+### Justification for Requested Service / Medication (Medical Necessity)
+{val('justificationForService')}
+
+---
+## 8. PROVIDER SIGNATURE
+
+| Field | Value |
+| :--- | :--- |
+| Provider Signature | [SIGNATURE LINE] |
+| Date | {val('date')} |
+"""
+    return form_content
+
+def generate_narrative_letter(data: Dict[str, str]) -> str:
+    """Generates the content for the narrative PA letter in Markdown format."""
+    s_data = get_static_data()
+    merged_data = {**s_data, **data}
+
+    # Helper function for safe access and placeholder logic
+    def val(key):
+        # Use a more narrative-friendly placeholder for unknown fields
+        return merged_data.get(key, '[UNKNOWN/NOT PROVIDED]') if merged_data.get(key, '').strip() != '[BLANK]' else '[UNKNOWN/NOT PROVIDED]'
+
+    # Use a specific default for diagnosis if unknown for readability
+    diagnosis_desc = val('diagnosisDescription')
+    icd_10 = val('icd10')
+
+    letter_content = f"""# Prior Authorization Request: Narrative Letter
+
+---
+[Office Letterhead]
+
+{s_data['date']}
+
+Attention: Preauthorization Department
+**{val('primaryInsuranceCompany')}**
+
+---
+## RE: Patient Information
+* **Patient Name:** {val('patientName')}
+* **Patient Date of Birth:** {val('patientDOB')}
+* **Insurance ID #:** {val('policyNumber')}
+* **Insurance Group #:** {val('groupNumber')}
+
+---
+Dear Madam/Sir,
+
+I am writing to request prior authorization for the medically necessary treatment of my patient, **{val('patientName')}**, for **{diagnosis_desc}** (ICD-10 Code: **{icd_10}**). The requested service/medication is **{val('requestedServiceMedication')}**, which is scheduled to begin on or around **{val('expectedDateOfService')}**.
+
+### Clinical Background and Medical Necessity
+
+My patient, **{val('patientName')}**, presents with a complex history consistent with **{diagnosis_desc}**.
+
+**Relevant Clinical Findings:**
+{val('relevantClinicalFindings')}
+
+### Treatment History
+
+Previous therapeutic attempts have proven inadequate, underscoring the necessity of the requested intervention. The patient's **treatment history** includes:
+{val('previousTreatmentsTried')}
+
+### Justification for Requested Service/Medication
+
+The requested medication/procedure, **{val('requestedServiceMedication')}**, represents the most appropriate and medically necessary course of action. This conclusion is based on the patient’s specific pathology and the following detailed rationale:
+{val('justificationForService')}
+
+Based upon the documented medical necessity, the patient's current condition, and the failure of previous treatments, I strongly request that approval be granted for the treatment of **{val('patientName')}** and all related services as soon as possible.
+
+Please fax your approval to my office at **{val('providerFax')}** or contact me directly with any additional questions.
+
+Sincerely,
+
+[Signature]
+
+**{val('requestingProviderName')}**
+{val('specialty')}
+NPI: {val('npiNumber')}
+Tel: {val('providerPhone')}
+
+---
+## Enclosures
+* History and Physical (Contained in PDF Report)
+* Progress Notes (Contained in Conversation Transcript)
+* Pertinent Test Reports (Contained in PDF Report)
+* Clinical Summary / Rationale
+
+"""
+    return letter_content
+
+# --- MAIN EXECUTION ---
+
+def main(pdf_file_path: str, conversation_file_path: str):
+    """Main function to run the data extraction and document generation."""
+    try:
+        # Read Conversation Text from File
+        with open(conversation_file_path, 'r', encoding='utf-8') as f:
+            conversation_text = f.read()
+
+        print(f"--- Starting analysis for PDF: {pdf_file_path} ---")
+        
+        # 1. Call API to extract structured data
+        extracted_data = call_gemini_api(pdf_file_path, conversation_text)
+
+        patient_name = extracted_data.get('patientName', 'UnknownPatient').replace(' ', '_').replace('/', '_')
+        if patient_name == '[BLANK]' or not patient_name.strip():
+             patient_name = 'UnknownPatient'
+        
+        print("\n--- Extracted Data (Snippet) ---")
+        print(f"Patient Name: {extracted_data.get('patientName')}")
+        print(f"Diagnosis: {extracted_data.get('diagnosisDescription')}")
+        print(f"Justification Length: {len(extracted_data.get('justificationForService', ''))} chars")
+        print("------------------------------\n")
+
+        # 2. Generate documents
+        structured_content = generate_structured_form(extracted_data)
+        narrative_content = generate_narrative_letter(extracted_data)
+        
+        # 3. Save documents
+        structured_filename = f"PriorAuth_Structured_Form_{patient_name}.md"
+        narrative_filename = f"PriorAuth_Narrative_Letter_{patient_name}.md"
+
+        with open(structured_filename, 'w', encoding='utf-8') as f:
+            f.write(structured_content)
+        
+        with open(narrative_filename, 'w', encoding='utf-8') as f:
+            f.write(narrative_content)
+
+        print(f"SUCCESS! Documents saved:")
+        print(f" - Structured Form: {structured_filename}")
+        print(f" - Narrative Letter: {narrative_filename}")
+
+    except Exception as e:
+        print(f"\nFATAL ERROR: {e}")
+        print("Please check the API key, file paths, and ensure the conversation file exists.")
+
+
+if __name__ == "__main__":
+    # --- USAGE INSTRUCTIONS ---
+    # 1. Create a dummy conversation text file (e.g., 'conversation.txt')
+    # 2. Place your patient report PDF (e.g., 'report.pdf') in the same directory
+    # 3. Update GEMINI_API_KEY at the top of this script.
+    
+    # Example usage (UPDATE THESE PATHS):
+    # For testing, you must create a 'conversation.txt' file and use a real PDF.
+    
+    CONVERSATION_FILE = 'conversation.txt'
+    PDF_FILE = 'report.pdf'
+
+    print("Note: You must edit this script to provide your API Key and file paths.")
+    
+    # Dummy creation of conversation.txt if it doesn't exist for easy testing setup
+    try:
+        with open(CONVERSATION_FILE, 'r') as f:
+            # Check if file is empty
+            if f.read().strip() == "":
+                raise FileNotFoundError
+    except FileNotFoundError:
+        print(f"\nCreating a dummy file named '{CONVERSATION_FILE}' with sample content.")
+        with open(CONVERSATION_FILE, 'w', encoding='utf-8') as f:
+            f.write("""
+Dr. S: The pathology confirms Blastic Plasmacytoid Dendritic Cell Neoplasm, ICD-10 C86.4. The previous VAD chemotherapy failed due to intolerance and lack of response. We must proceed immediately with ELZONRIS. The patient's date of birth is 01/01/1980.
+Patient: My name is John Doe. Will the treatment start this month?
+Dr. S: Yes, the expected date of service is 10/20/2025. This is the only appropriate targeted therapy for BPDCN at this stage. We plan for outpatient administration.
+""")
+
+    # Main call to process data
+    # IMPORTANT: Change PDF_FILE to the path of your actual patient report PDF.
+    # main(pdf_file_path=PDF_FILE, conversation_file_path=CONVERSATION_FILE)
+    
+    print("\nTo run the script, first update 'GEMINI_API_KEY' and the file paths (CONVERSATION_FILE/PDF_FILE) then uncomment the 'main' call.")
+    
