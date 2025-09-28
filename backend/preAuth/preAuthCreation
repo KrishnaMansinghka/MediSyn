@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prior Authorization Request Form Generator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Libraries for PDF Generation -->
+    <!-- html2canvas is needed to convert the HTML output into a canvas image -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- jsPDF is needed to package the canvas image into a downloadable PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        /* Custom styles for the letterhead and print media */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f9;
+        }
+        .container-main {
+            max-width: 1000px;
+        }
+        .input-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        /* Styles for the Form output itself */
+        .output-container {
+            background-color: white;
+            padding: 2rem;
+            max-width: 210mm; /* A4 width */
+            min-height: 297mm; /* A4 height */
+            margin: 2rem auto;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            color: #1f2937; /* Dark gray text */
+        }
+
+        /* Narrative Letter Specific Styles */
+        #letter-output-narrative {
+            line-height: 1.6;
+        }
+        .narrative-header {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+        .narrative-footer {
+            margin-top: 40px;
+        }
+        .narrative-section-title {
+            font-weight: 600;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            text-decoration: underline;
+        }
+        
+        /* Structured Form Specific Styles */
+        #letter-output-structured {
+             /* Use the common output-container styles */
+        }
+        .form-section {
+            border: 1px solid #d1d5db;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.375rem;
+        }
+
+        .form-section-title {
+            font-weight: 700;
+            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+            color: #1e3a8a; /* Dark blue */
+        }
+        
+        .form-field {
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px dashed #e5e7eb;
+        }
+
+        .field-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #6b7280; /* Gray-500 */
+            display: block;
+        }
+
+        .field-value {
+            font-size: 0.875rem;
+            min-height: 1.25rem; /* Ensure space even if blank */
+            display: block;
+        }
+        
+        .form-checkbox {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 1rem;
+        }
+        
+        .checkbox-box {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 1px solid #1f2937;
+            margin-right: 4px;
+            text-align: center;
+            line-height: 10px;
+            font-size: 10px;
+            background-color: #f3f4f6;
+        }
+        
+        .fillable-area {
+            min-height: 80px;
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            margin-top: 4px;
+            white-space: pre-wrap;
+            background-color: #f9fafb;
+            font-size: 0.875rem;
+        }
+
+        /* Styles to temporarily hide print styles during canvas rendering */
+        .pdf-generating * {
+            box-shadow: none !important;
+            border: none !important;
+        }
+        
+        /* Print-specific styles to ensure a clean PDF output */
+        @media print {
+            body {
+                background-color: white !important;
+            }
+            .input-panel, .control-panel, .print-hide, .tab-controls {
+                display: none !important;
+            }
+            .container-main {
+                max-width: 100% !important;
+                margin: 0 !important;
+            }
+            .output-container {
+                box-shadow: none !important;
+                padding: 0.5in !important;
+                margin: 0 !important;
+                width: 100% !important;
+                min-height: 100vh !important;
+                border: none !important;
+            }
+            #letter-output-structured {
+                /* Ensure only the active form prints */
+                display: block !important;
+            }
+            #letter-output-narrative {
+                /* Ensure only the active letter prints */
+                display: none !important; 
+            }
+            .active-print-content {
+                display: block !important;
+            }
+            .form-field {
+                 /* Ensure dashed lines look clean on print */
+                border-bottom: 1px dotted #000 !important; 
+            }
+            .fillable-area {
+                border: 1px solid #000 !important;
+                background-color: white !important;
+            }
+        }
+        
+        .loader {
+            border-top-color: #3498db;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .tab-button {
+            padding: 10px 15px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            border: 1px solid #d1d5db;
+            border-bottom: none;
+            background-color: #f3f4f6;
+        }
+        .tab-button.active {
+            background-color: white;
+            color: #1e3a8a;
+            border-top: 3px solid #1e3a8a;
+            border-bottom: 1px solid white;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="p-6 md:p-10 container-main mx-auto">
+    <div class="control-panel print-hide mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Prior Authorization Request Generator</h1>
+        <p class="text-gray-600">
+            Upload the **Symptoms Report (PDF)** and provide the **Doctor/Patient Conversation**. The AI will extract the necessary patient, diagnosis, and rationale data to fill **both** the structured form and the narrative letter.
+        </p>
+    </div>
+
+    <!-- Input Panel -->
+    <div class="input-panel print-hide grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- PDF Input Card -->
+        <div class="input-card">
+            <h2 class="text-xl font-semibold mb-4 text-indigo-700">1. Clinical Report (PDF File)</h2>
+            <div class="mb-4">
+                <label for="pdfInput" class="block text-sm font-medium text-gray-700 mb-2">
+                    Upload Patient Clinical/Symptom Report (PDF):
+                </label>
+                <input type="file" id="pdfInput" accept=".pdf" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none p-2">
+                <p id="pdfStatus" class="text-xs mt-1 text-gray-500">No file selected.</p>
+            </div>
+            <p class="text-xs text-red-500">The PDF is used to extract Patient Info, Diagnosis, and Clinical Findings.</p>
+        </div>
+
+        <!-- Conversation Input Card -->
+        <div class="input-card">
+            <h2 class="text-xl font-semibold mb-4 text-indigo-700">2. Conversation Transcript (Text)</h2>
+            <div class="mb-4">
+                <label for="conversationTranscript" class="block text-sm font-medium text-gray-700">
+                    Paste Doctor/Patient Conversation Transcript:
+                </label>
+                <textarea id="conversationTranscript" rows="8" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border resize-y">
+Dr. S: "The pathology report confirms recurrence of BPDCN (ICD-10 C86.4). Your CD123 expression is 95%. Previous treatment (VAD) failed."
+Elara: "My name is Elara Vance, born 10/15/1975. What's the new treatment?"
+Dr. S: "We are prescribing ELZONRIS (tagraxofusp-erzs) for treatment from 09/2025 to 12/2025. This targeted approach is medically necessary due to the treatment failure. We plan to administer this in the Outpatient infusion center."
+                </textarea>
+                <p class="text-xs text-gray-500 mt-1">
+                    Enter the relevant discussion points and any explicit dates/names.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="flex justify-center mt-6 mb-8 print-hide">
+        <button id="generateButton" onclick="processInputs()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-xl transition duration-150 ease-in-out">
+            Process Files & Generate Forms
+        </button>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator" class="hidden flex justify-center items-center mt-10">
+        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+        <p class="ml-4 text-lg text-gray-600">Analyzing documents with AI... Please wait.</p>
+    </div>
+    
+    <!-- PDF Generating Status -->
+    <div id="pdfStatusMessage" class="hidden flex justify-center items-center mt-10">
+        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+        <p class="ml-4 text-lg text-gray-600">Generating PDF file...</p>
+    </div>
+
+    <!-- Output Controls (Tabs and Download Button) -->
+    <div id="outputControls" class="hidden">
+        <div class="flex tab-controls">
+            <button id="tabStructured" onclick="showContent('structured')" class="tab-button active">Structured Form</button>
+            <button id="tabNarrative" onclick="showContent('narrative')" class="tab-button">Narrative Letter</button>
+            <div class="flex-grow"></div>
+            <button id="downloadPDFButton" onclick="downloadPDF()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-xl transition duration-150 ease-in-out">
+                Download Current View (PDF)
+            </button>
+        </div>
+    </div>
+
+
+    <!-- Output Section (Form Preview) -->
+    <div id="outputContainer" class="hidden">
+        <!-- 1. Structured Form -->
+        <div id="letter-output-structured" class="output-container active-print-content">
+            <!-- Content will be inserted here by JavaScript -->
+        </div>
+
+        <!-- 2. Narrative Letter -->
+        <div id="letter-output-narrative" class="output-container hidden">
+            <!-- Content will be inserted here by JavaScript -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // Global variable to hold extracted data temporarily for printing
+    let extractedDataCache = {};
+    const { jsPDF } = window.jspdf; // Initialize jsPDF
+    const defaultTitle = "Prior Authorization Request Form Generator";
+    let activeContent = 'structured'; // Tracks which content is visible/to be printed
+
+    // --- Utility Functions ---
+
+    // Global function to escape HTML special characters
+    const escapeHTML = (str) => {
+        if (!str || str.trim() === '') return '[BLANK]';
+        // Replace newlines with <br> for HTML rendering, then escape for safety
+        return str.replace(/\n/g, '<br>').replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#039;');
+    };
+
+    // Function to get current date in MM/DD/YYYY format
+    const getFormattedDate = () => {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        let mm = today.getMonth() + 1;
+        let dd = today.getDate();
+        if (mm < 10) mm = '0' + mm;
+        if (dd < 10) dd = '0' + dd;
+        return `${mm}/${dd}/${yyyy}`;
+    };
+
+    // Function to read file as Base64
+    const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                // Strip the mime type prefix (e.g., 'data:application/pdf;base64,')
+                const base64String = reader.result.split(',')[1];
+                resolve(base64String);
+            };
+            reader.onerror = (error) => reject(error);
+        });
+    };
+
+    // --- Core API and Data Processing ---
+
+    const callGeminiAPI = async (pdfBase64, conversationText) => {
+        const apiKey = "";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+        // 1. Define the System Instruction (LLM's Persona and Task)
+        const systemPrompt = `You are a highly efficient medical data extraction and summarization assistant. Your task is to analyze a conversation transcript and a patient's symptoms report (PDF content) to extract specific structured data points for a Prior Authorization Request Form AND a Narrative Letter.
+
+        **REQUIRED OUTPUT:** A single JSON object matching the provided schema.
+        **Instructions:**
+        1. **Strictly Extract:** Only use information explicitly mentioned in the input files (PDF or conversation). If a field is not found, the output value MUST be the empty string "".
+        2. **Patient Info:** Extract the full Patient Name, Date of Birth (in MM/DD/YYYY format if possible), and any available Phone Number.
+        3. **Clinical Info:** Extract the ICD-10 Code (e.g., C86.4), the full Diagnosis Description, the Requested Service/Medication Name (e.g., ELZONRIS), the Expected Date of Service (MM/DD/YYYY), list any Previous Treatments Tried, and state the Place of Service (Office, Outpatient, Inpatient, Home).
+        4. **Justification:** Create a detailed 'justificationForService' that combines all clinical evidence (symptoms, biopsy findings, previous treatment failure, and current targeted therapy decision) found in BOTH documents to justify the medical necessity.`;
+
+        // 2. Define the User Query
+        const userQuery = `Extract structured data from the following inputs.
+        
+        **Conversation Transcript:**
+        ---
+        ${conversationText}
+        ---
+
+        Generate the structured output based on all available information.`;
+
+        // 3. Construct the API Payload
+        const contents = [
+            {
+                role: "user",
+                parts: [
+                    { text: userQuery },
+                    {
+                        inlineData: {
+                            mimeType: "application/pdf",
+                            data: pdfBase64
+                        }
+                    }
+                ]
+            }
+        ];
+
+        const payload = {
+            contents: contents,
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "OBJECT",
+                    properties: {
+                        "patientName": { "type": "STRING", description: "Full name of the patient. Blank if not found." },
+                        "patientDOB": { "type": "STRING", description: "Patient's Date of Birth in MM/DD/YYYY format. Blank if not found." },
+                        "patientPhone": { "type": "STRING", description: "Patient's phone number. Blank if not found." },
+                        "icd10": { "type": "STRING", description: "The primary ICD-10 code for the condition. Blank if not found." },
+                        "diagnosisDescription": { "type": "STRING", description: "The full medical diagnosis name. Blank if not found." },
+                        "requestedServiceMedication": { "type": "STRING", description: "The name of the drug or procedure being requested. Blank if not found." },
+                        "expectedDateOfService": { "type": "STRING", description: "The date of the requested service, in MM/DD/YYYY format. Blank if not found." },
+                        "relevantClinicalFindings": { "type": "STRING", description: "A summarized list of current symptoms, physical exam findings, and lab/imaging results. Blank if not found." },
+                        "previousTreatmentsTried": { "type": "STRING", description: "A list of previous treatments tried and reasons for failure/discontinuation. Blank if not found." },
+                        "justificationForService": { "type": "STRING", description: "A detailed justification for the medical necessity of the requested service/medication. Blank if not found." },
+                        "placeOfService": { "type": "STRING", description: "The place of service (Office, Outpatient, Inpatient, Home). Blank if not found." }
+                    },
+                    required: ["patientName", "patientDOB", "patientPhone", "icd10", "diagnosisDescription", "requestedServiceMedication", "expectedDateOfService", "relevantClinicalFindings", "previousTreatmentsTried", "justificationForService", "placeOfService"]
+                }
+            },
+        };
+
+        // 4. Send Request with Exponential Backoff
+        const maxRetries = 3;
+        let lastError = null;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} ${JSON.stringify(result)}`);
+                }
+
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!jsonText) {
+                     // Check if there are any candidates at all, indicating a possible rejection or empty response
+                     if (!result.candidates || result.candidates.length === 0) {
+                        throw new Error("Gemini API returned no candidates. The request may have been blocked or failed silently.");
+                     }
+                     throw new Error("API response was missing expected JSON content (empty text field).");
+                }
+                
+                try {
+                    return JSON.parse(jsonText);
+                } catch (e) {
+                    throw new Error(`Failed to parse JSON response from API: ${e.message}. Raw output may be truncated or invalid.`);
+                }
+                
+            } catch (error) {
+                lastError = error;
+                console.error(`Attempt ${attempt + 1} failed:`, error);
+                if (attempt < maxRetries - 1) {
+                    const delay = Math.pow(2, attempt) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        throw new Error(`Failed to call Gemini API after ${maxRetries} attempts. Last error: ${lastError.message}`);
+    };
+
+    // --- UI/Event Handlers ---
+
+    const processInputs = async () => {
+        const pdfFile = document.getElementById('pdfInput').files[0];
+        const conversationText = document.getElementById('conversationTranscript').value.trim();
+
+        const outputControls = document.getElementById('outputControls');
+        const outputContainer = document.getElementById('outputContainer');
+        const loadingDiv = document.getElementById('loadingIndicator');
+        
+        outputContainer.classList.add('hidden');
+        outputControls.classList.add('hidden');
+        
+        if (!pdfFile || !conversationText) {
+            document.getElementById('letter-output-structured').innerHTML = '<div class="text-center text-red-600 font-semibold mt-8">Please upload a PDF for the report AND paste the conversation text.</div>';
+            outputContainer.classList.remove('hidden');
+            return;
+        }
+
+        loadingDiv.classList.remove('hidden');
+
+        try {
+            const pdfBase64 = await fileToBase64(pdfFile);
+            const extractedData = await callGeminiAPI(pdfBase64, conversationText);
+            
+            // Cache the data for use in the print function
+            extractedDataCache = extractedData; 
+
+            // Generate both the structured form and the narrative letter
+            generateStructuredForm(extractedData);
+            generateNarrativeLetter(extractedData);
+            
+            outputControls.classList.remove('hidden');
+            outputContainer.classList.remove('hidden');
+
+            // Default to showing the structured form
+            showContent('structured'); 
+
+        } catch (e) {
+            console.error("Processing failed:", e);
+            document.getElementById('letter-output-structured').innerHTML = `<div class="text-center text-red-700 font-semibold mt-8 p-4 bg-red-100 rounded-lg">
+                <p>Failed to process documents. Error: ${e.message}</p>
+                <p class="text-sm mt-2">Please ensure the PDF file is valid and contains clear text, and try again.</p>
+            </div>`;
+            outputContainer.classList.remove('hidden');
+        } finally {
+            loadingDiv.classList.add('hidden');
+        }
+    };
+    
+    // --- NARRATIVE LETTER GENERATION ---
+    const generateNarrativeLetter = (extracted) => {
+        // --- HARDCODED FAKE/STATIC DATA (HCP and Insurance only) ---
+        const staticData = getStaticData();
+        // -----------------------------------------------------------
+
+        // Combine static and extracted data
+        const data = { ...staticData, ...extracted };
+        
+        // Helper to display data or a placeholder
+        const valueOrPlaceholder = (value, placeholder = '[BLANK/UNKNOWN]') => value.trim() === '' ? placeholder : escapeHTML(value);
+
+        const narrativeHTML = `
+            <div class="text-sm p-4">
+                <div class="narrative-header text-xs">
+                    [Office Letterhead]<br>
+                    ${staticData.date}<br>
+                </div>
+
+                <div class="mb-6">
+                    <p>Attention: Preauthorization Department</p>
+                    <p class="font-semibold">${valueOrPlaceholder(staticData.primaryInsuranceCompany)}</p>
+                </div>
+                
+                <p class="font-bold mb-4">RE:</p>
+                <ul class="list-disc list-inside ml-4 text-sm mb-6">
+                    <li>Patient Name: ${valueOrPlaceholder(data.patientName)}</li>
+                    <li>Patient Date of Birth: ${valueOrPlaceholder(data.patientDOB)}</li>
+                    <li>Insurance ID #: ${valueOrPlaceholder(staticData.policyNumber)}</li>
+                    <li>Insurance Group #: ${valueOrPlaceholder(staticData.groupNumber, '[BLANK/UNKNOWN]')}</li>
+                </ul>
+
+                <p class="mb-4">Dear Madam/Sir,</p>
+
+                <p class="mb-6">
+                    I am writing to request prior authorization for the medically necessary treatment of my patient, 
+                    <span class="font-semibold">${valueOrPlaceholder(data.patientName)}</span>, for 
+                    <span class="font-semibold">${valueOrPlaceholder(data.diagnosisDescription)}</span> (ICD-10 Code: 
+                    <span class="font-semibold">${valueOrPlaceholder(data.icd10, 'C86.4 - Blastic plasmacytoid dendritic cell neoplasm')}</span>). 
+                    The requested service/medication is <span class="font-semibold">${valueOrPlaceholder(data.requestedServiceMedication)}</span>, which is scheduled to begin on or around 
+                    <span class="font-semibold">${valueOrPlaceholder(data.expectedDateOfService, '[DATE OF SERVICE]')}</span>.
+                </p>
+
+                <div class="narrative-section-title">Clinical Background and Medical Necessity</div>
+                
+                <p class="mb-4">
+                    My patient, <span class="font-semibold">${valueOrPlaceholder(data.patientName)}</span>, presents with a complex history consistent with 
+                    <span class="font-semibold">${valueOrPlaceholder(data.diagnosisDescription)}</span>. The following **relevant clinical findings and history** are detailed below, based on the attached reports:
+                </p>
+                
+                <!-- Clinical Findings - Paragraph/Text Flow -->
+                <p class="mb-4 ml-4 text-sm">
+                    ${valueOrPlaceholder(data.relevantClinicalFindings, 'No specific clinical findings were explicitly extracted from the input documents at this time.')}
+                </p>
+
+                <div class="narrative-section-title">Treatment History</div>
+                <p class="mb-4">
+                    Previous therapeutic attempts have proven inadequate, underscoring the necessity of the requested intervention. 
+                    The patient's treatment history includes:
+                </p>
+                
+                <!-- Treatment History - Paragraph/Text Flow -->
+                <p class="mb-4 ml-4 text-sm">
+                    ${valueOrPlaceholder(data.previousTreatmentsTried, 'No specific previous treatments were explicitly extracted from the input documents at this time, but current therapy is medically required due to failure or contraindication of prior treatments.')}
+                </p>
+
+                <div class="narrative-section-title">Justification for Requested Service/Medication</div>
+                <p class="mb-4">
+                    The requested medication/procedure, <span class="font-semibold">${valueOrPlaceholder(data.requestedServiceMedication)}</span>, represents the most appropriate and medically necessary course of action.
+                    This conclusion is based on the patient’s specific pathology and the **following detailed rationale**:
+                </p>
+                
+                <!-- Justification - Paragraph/Text Flow -->
+                <p class="mb-6 ml-4 text-sm">
+                    ${valueOrPlaceholder(data.justificationForService, 'No detailed justification was explicitly extracted. Please manually review the conversation and report to insert the medical rationale here.')}
+                </p>
+                
+                <p class="mb-8">
+                    Based upon the documented medical necessity, the patient's current condition, and the failure of previous treatments, 
+                    I strongly request that approval be granted for the treatment of ${valueOrPlaceholder(data.patientName)} and all related services as soon as possible.
+                    Please fax your approval to my office at <span class="font-semibold">${valueOrPlaceholder(staticData.providerFax)}</span> or contact me directly with any additional questions.
+                </p>
+
+                <div class="narrative-footer">
+                    <p class="mb-1 text-sm">Sincerely,</p>
+                    <div class="h-10 w-40 border-b border-black mb-1"></div> <!-- Signature Line -->
+                    <p class="font-semibold">${valueOrPlaceholder(staticData.requestingProviderName)}</p>
+                    <p class="text-xs">${valueOrPlaceholder(staticData.specialty)}</p>
+                    <p class="text-xs">NPI: ${valueOrPlaceholder(staticData.npiNumber)}</p>
+                    <p class="text-xs">Tel: ${valueOrPlaceholder(staticData.providerPhone)}</p>
+                </div>
+
+                <div class="narrative-section-title text-xs mt-8">Enclosures:</div>
+                <ul class="list-disc list-inside ml-4 text-xs">
+                    <li>History and Physical (Contained in PDF Report)</li>
+                    <li>Progress Notes (Contained in Conversation Transcript)</li>
+                    <li>Pertinent Test Reports (Contained in PDF Report)</li>
+                    <li>Clinical Summary / Rationale</li>
+                </ul>
+            </div>
+        `;
+
+        document.getElementById('letter-output-narrative').innerHTML = narrativeHTML;
+    };
+    
+    // --- STRUCTURED FORM GENERATION ---
+    const generateStructuredForm = (extracted) => {
+        // --- HARDCODED FAKE/STATIC DATA (HCP and Insurance only) ---
+        const staticData = getStaticData();
+        // -----------------------------------------------------------
+
+        // Combine static and extracted data
+        const data = { ...staticData, ...extracted };
+        
+        // Helper to display data or [BLANK] placeholder
+        const valueOrBlank = (value) => value.trim() === '' ? '[BLANK]' : escapeHTML(value);
+        
+        // Structured HTML Form Template based on prior_authorization_form_hospital_aligned.pdf
+        const formHTML = `
+            <div class="p-2 text-center text-xl font-bold bg-gray-100 border-b-2 border-indigo-700">
+                PRIOR AUTHORIZATION REQUEST FORM
+            </div>
+            <div class="text-sm text-gray-500 text-center mb-4">
+                Generated from AI analysis of Clinical Report and Conversation Transcript
+            </div>
+
+            <!-- SECTION 1: PATIENT INFORMATION -->
+            <div class="form-section">
+                <div class="form-section-title">1. PATIENT INFORMATION</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Patient Name:</span>
+                        <span class="field-value">${valueOrBlank(data.patientName)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Date of Birth (MM/DD/YYYY):</span>
+                        <span class="field-value">${valueOrBlank(data.patientDOB)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Patient ID/Insurance Member ID (FAKE):</span>
+                        <span class="field-value">${valueOrBlank(staticData.policyNumber)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Phone Number:</span>
+                        <span class="field-value">${valueOrBlank(data.patientPhone)}</span>
+                    </div>
+                </div>
+                <div class="form-field mt-2">
+                    <span class="field-label">Address:</span>
+                    <span class="field-value">[BLANK]</span>
+                </div>
+            </div>
+
+            <!-- SECTION 2: INSURANCE INFORMATION -->
+            <div class="form-section">
+                <div class="form-section-title">2. INSURANCE INFORMATION (FAKE DATA)</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Primary Insurance Company:</span>
+                        <span class="field-value">${valueOrBlank(staticData.primaryInsuranceCompany)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Insurance Plan Name:</span>
+                        <span class="field-value">${valueOrBlank(staticData.insurancePlanName)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Group Number:</span>
+                        <span class="field-value">${valueOrBlank(staticData.groupNumber)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Policy Number:</span>
+                        <span class="field-value">${valueOrBlank(staticData.policyNumber)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Insurance Phone (PA Dept):</span>
+                        <span class="field-value">${valueOrBlank(staticData.insurancePhonePA)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Secondary Insurance:</span>
+                        <span class="field-value">${valueOrBlank(staticData.secondaryInsurance)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 3: PROVIDER INFORMATION -->
+            <div class="form-section">
+                <div class="form-section-title">3. PROVIDER INFORMATION (FAKE DATA)</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Requesting Provider Name:</span>
+                        <span class="field-value">${valueOrBlank(staticData.requestingProviderName)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">NPI Number:</span>
+                        <span class="field-value">${valueOrBlank(staticData.npiNumber)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Specialty:</span>
+                        <span class="field-value">${valueOrBlank(staticData.specialty)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Practice / Facility Name:</span>
+                        <span class="field-value">${valueOrBlank(staticData.practiceFacilityName)}</span>
+                    </div>
+                </div>
+                <div class="form-field mt-2">
+                    <span class="field-label">Address:</span>
+                    <span class="field-value">${valueOrBlank(staticData.providerAddress)}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Phone Number:</span>
+                        <span class="field-value">${valueOrBlank(staticData.providerPhone)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Fax Number:</span>
+                        <span class="field-value">${valueOrBlank(staticData.providerFax)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Contact Person:</span>
+                        <span class="field-value">${valueOrBlank(staticData.contactPerson)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: REQUEST DETAILS -->
+            <div class="form-section">
+                <div class="form-section-title">4. REQUEST DETAILS</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Type of Request:</span>
+                        <div class="field-value flex items-center mt-1">
+                            <span class="form-checkbox"><span class="checkbox-box">${data.typeOfRequest === 'New Authorization' ? 'X' : ''}</span> New Authorization</span>
+                            <span class="form-checkbox"><span class="checkbox-box">${data.typeOfRequest === 'Renewal' ? 'X' : ''}</span> Renewal</span>
+                            <span class="form-checkbox"><span class="checkbox-box">${data.typeOfRequest === 'Urgent / Expedited' ? 'X' : ''}</span> Urgent / Expedited</span>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Date of Request:</span>
+                        <span class="field-value">${staticData.date}</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mt-2">
+                    <div class="form-field">
+                        <span class="field-label">Expected Date of Service (First Dose):</span>
+                        <span class="field-value">${valueOrBlank(data.expectedDateOfService)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Place of Service:</span>
+                        <div class="field-value flex items-center mt-1">
+                            <span class="form-checkbox"><span class="checkbox-box">${data.placeOfService === 'Office' ? 'X' : ''}</span> Office</span>
+                            <span class="form-checkbox"><span class="checkbox-box">${data.placeOfService === 'Outpatient' ? 'X' : ''}</span> Outpatient</span>
+                            <span class="form-checkbox"><span class="checkbox-box">${data.placeOfService === 'Inpatient' ? 'X' : ''}</span> Inpatient</span>
+                            <span class="form-checkbox"><span class="checkbox-box">${data.placeOfService === 'Home' ? 'X' : ''}</span> Home</span>
+                            <span class="form-checkbox"><span class="checkbox-box"></span> Other: [BLANK]</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SECTION 5: REQUESTED SERVICE/MEDICATION -->
+            <div class="form-section">
+                <div class="form-section-title">5. REQUESTED SERVICE/MEDICATION</div>
+                <div class="form-field">
+                    <span class="field-label">Procedure / Medication Name:</span>
+                    <span class="field-value">${valueOrBlank(data.requestedServiceMedication)}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">CPT/HCPCS/ NDC Code(s):</span>
+                        <span class="field-value">${valueOrBlank(staticData.cptCode)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Dosage / Quantity (if drug):</span>
+                        <span class="field-value">${valueOrBlank(staticData.dosageQuantity)}</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Frequency / Duration:</span>
+                        <span class="field-value">${valueOrBlank(staticData.frequencyDuration)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Route of Administration (if drug):</span>
+                        <span class="field-value">${valueOrBlank(staticData.routeOfAdministration)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SECTION 6: CLINICAL INFORMATION -->
+            <div class="form-section">
+                <div class="form-section-title">6. CLINICAL INFORMATION</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Diagnosis Code(s) (ICD-10):</span>
+                        <span class="field-value">${valueOrBlank(data.icd10)}</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Diagnosis Description(s):</span>
+                        <span class="field-value">${valueOrBlank(data.diagnosisDescription)}</span>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <span class="field-label">Relevant Clinical Findings / Summary:</span>
+                    <div class="fillable-area">${valueOrBlank(data.relevantClinicalFindings)}</div>
+                </div>
+
+                <div class="mt-4">
+                    <span class="field-label">Previous Treatments / Therapies Tried:</span>
+                    <div class="fillable-area">${valueOrBlank(data.previousTreatmentsTried)}</div>
+                </div>
+            </div>
+            
+            <!-- SECTION 6 (Continued): Justification -->
+            <div class="form-section">
+                <div class="form-section-title">Justification for Requested Service / Medication (Medical Necessity)</div>
+                <div class="fillable-area h-auto min-h-[150px]">${valueOrBlank(data.justificationForService)}</div>
+
+                <div class="mt-4">
+                    <span class="field-label">Supporting Documents Attached:</span>
+                    <div class="field-value flex flex-wrap mt-1 text-xs">
+                        <span class="form-checkbox"><span class="checkbox-box">X</span> Office Notes</span>
+                        <span class="form-checkbox"><span class="checkbox-box">X</span> Lab Results</span>
+                        <span class="form-checkbox"><span class="checkbox-box"></span> Imaging Reports</span>
+                        <span class="form-checkbox"><span class="checkbox-box">X</span> Treatment History</span>
+                        <span class="form-checkbox"><span class="checkbox-box">X</span> Other (Clinical Summary/Conversation Transcript)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- SECTION 7: PREAUTHORIZATION STATUS (For Payer Use Only) -->
+            <div class="form-section bg-gray-50">
+                <div class="form-section-title text-gray-700">7. PREAUTHORIZATION STATUS (For Payer Use Only)</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Authorization Number:</span>
+                        <span class="field-value">[BLANK]</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Date Approved / Denied:</span>
+                        <span class="field-value">[BLANK]</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Effective Dates: From</span>
+                        <span class="field-value">[BLANK]</span>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">To</span>
+                        <span class="field-value">[BLANK]</span>
+                    </div>
+                </div>
+                <div class="form-field mt-2">
+                    <span class="field-label">Reviewer Name / Title:</span>
+                    <span class="field-value">[BLANK]</span>
+                </div>
+                <div class="form-field mt-2">
+                    <span class="field-label">Comments:</span>
+                    <div class="field-value min-h-[50px]">[BLANK]</div>
+                </div>
+            </div>
+
+            <!-- SECTION 8: PROVIDER SIGNATURE -->
+            <div class="form-section">
+                <div class="form-section-title">8. PROVIDER SIGNATURE</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-field">
+                        <span class="field-label">Provider Signature:</span>
+                        <div class="field-value min-h-[30px]">[BLANK]</div>
+                    </div>
+                    <div class="form-field">
+                        <span class="field-label">Date:</span>
+                        <span class="field-value">${staticData.date}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('letter-output-structured').innerHTML = formHTML;
+    };
+    
+    // Static data moved to a helper function for reuse
+    const getStaticData = () => {
+        return {
+            date: getFormattedDate(),
+            
+            // 2. INSURANCE INFORMATION (Fake Data)
+            primaryInsuranceCompany: 'Global Health Network (FAKE)',
+            insurancePlanName: 'PPO Elite Plan (FAKE)',
+            groupNumber: 'FAKE-GRP-9012',
+            policyNumber: 'FAKE-POL-3456',
+            insurancePhonePA: '(800) 555-1212',
+            secondaryInsurance: '', 
+
+            // 3. PROVIDER INFORMATION (Fake Data)
+            requestingProviderName: 'Dr. Anya Sharma, MD (FAKE)',
+            npiNumber: '1234567890 (FAKE)',
+            specialty: 'Oncology',
+            practiceFacilityName: 'City Cancer Center (FAKE)',
+            providerAddress: '123 Health Ave, Suite 400, Anytown, CA 90210',
+            providerPhone: '(555) 111-2222',
+            providerFax: '(555) 111-3333',
+            contactPerson: 'Jane Doe, PA Coordinator',
+            
+            // 4. REQUEST DETAILS (Type of Request)
+            typeOfRequest: 'New Authorization',
+            
+            // 5. REQUESTED SERVICE/MEDICATION (Fields the AI often cannot extract)
+            cptCode: '',
+            dosageQuantity: '', 
+            frequencyDuration: '', 
+            routeOfAdministration: '',
+        };
+    }
+    
+    // --- DOWNLOAD AND DISPLAY CONTROL ---
+
+    const showContent = (type) => {
+        activeContent = type;
+        const structuredDiv = document.getElementById('letter-output-structured');
+        const narrativeDiv = document.getElementById('letter-output-narrative');
+        const tabStructured = document.getElementById('tabStructured');
+        const tabNarrative = document.getElementById('tabNarrative');
+
+        if (type === 'structured') {
+            structuredDiv.classList.remove('hidden');
+            structuredDiv.classList.add('active-print-content');
+            narrativeDiv.classList.add('hidden');
+            narrativeDiv.classList.remove('active-print-content');
+            tabStructured.classList.add('active');
+            tabNarrative.classList.remove('active');
+        } else {
+            narrativeDiv.classList.remove('hidden');
+            narrativeDiv.classList.add('active-print-content');
+            structuredDiv.classList.add('hidden');
+            structuredDiv.classList.remove('active-print-content');
+            tabNarrative.classList.add('active');
+            tabStructured.classList.remove('active');
+        }
+    };
+
+    const downloadPDF = async () => {
+        const statusMessage = document.getElementById('pdfStatusMessage');
+        const outputElement = document.getElementById(`letter-output-${activeContent}`);
+        
+        statusMessage.classList.remove('hidden'); // Show loading indicator for PDF generation
+        
+        try {
+            // Determine the filename based on extracted data
+            let patientName = extractedDataCache.patientName || 'Unknown_Patient';
+            let suffix = activeContent === 'structured' ? 'Form' : 'Letter';
+            const filename = `PriorAuth_Request_${suffix}_${patientName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_')}.pdf`;
+
+            // Use A4 dimensions for PDF (210mm x 297mm)
+            const PDF_WIDTH = 210;
+            const PDF_HEIGHT = 297; 
+            const margin = 10; // mm
+            const contentWidth = PDF_WIDTH - 2 * margin; // 190mm
+
+            // Temporarily disable print-specific styles for accurate canvas rendering
+            document.body.classList.add('pdf-generating');
+
+            // Use html2canvas to render the content
+            const canvas = await html2canvas(outputElement, {
+                scale: 2, // Use a higher scale for better resolution
+                useCORS: true,
+                windowWidth: outputElement.scrollWidth,
+                windowHeight: outputElement.scrollHeight
+            });
+
+            // Re-enable body styles
+            document.body.classList.remove('pdf-generating');
+
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            const imgHeight = canvas.height * contentWidth / canvas.width;
+
+            // Initialize jsPDF
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            let position = 0;
+            let heightLeft = imgHeight;
+
+            // Add the image data to the PDF
+            pdf.addImage(imgData, 'JPEG', margin, margin + position, contentWidth, imgHeight);
+            heightLeft -= PDF_HEIGHT;
+
+            // Handle multi-page content
+            while (heightLeft >= -10) { // Check height left, allowing for small tolerance
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'JPEG', margin, margin + position, contentWidth, imgHeight);
+                heightLeft -= PDF_HEIGHT;
+            }
+
+            // Download the file
+            pdf.save(filename);
+
+        } catch (error) {
+            console.error("Error during PDF download:", error);
+            alert("Failed to generate PDF. Check console for details. Falling back to Print function.");
+            window.print(); // Fallback to print
+        } finally {
+            statusMessage.classList.add('hidden'); // Hide loading indicator
+        }
+    };
+
+    // Update PDF file status display
+    document.getElementById('pdfInput').addEventListener('change', (event) => {
+        const statusElement = document.getElementById('pdfStatus');
+        if (event.target.files.length > 0) {
+            statusElement.textContent = `File selected: ${event.target.files[0].name}`;
+            statusElement.classList.remove('text-gray-500');
+            statusElement.classList.add('text-green-600');
+        } else {
+            statusElement.textContent = 'No file selected.';
+            statusElement.classList.remove('text-green-600');
+            statusElement.classList.add('text-gray-500');
+        }
+    });
+
+</script>
+
+</body>
+</html>
