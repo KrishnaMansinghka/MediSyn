@@ -1,0 +1,34 @@
+============================================================
+MEDICAL ASSISTANT REPORT
+============================================================
+
+Medical Assistant Report
+Date: 9/26/2025
+Patient Demographics:
+Not provided.
+Chief Complaint:
+Dizziness, chest pain.
+History of Present Illness:
+The patient is experiencing dizziness that started two days ago, lasts for 3 hours, and occurs every two days. The severity of dizziness is 9/10, and it's located in the head. Associated symptom is blurred vision. No known triggers or relief factors for dizziness. The patient also reports chest pain with a severity of 8/10.
+Past Medical History:
+Diabetes (pre-existing condition)
+Family History:
+Heart attack, diabetes (genetic), diabetes (mother)
+Social History:
+Not provided.
+Medications:
+Metformin 500mg daily
+Allergies:
+Peanut
+Vitals & Labs:
+Not provided.
+Assessment:
+Dizziness and chest pain.
+Plan:
+Not provided.
+Physician Notes:
+None.
+
+============================================================
+Generated on: 9/27/2025, 2:51:59 PM
+============================================================

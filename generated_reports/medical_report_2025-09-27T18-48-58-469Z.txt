@@ -1,0 +1,34 @@
+============================================================
+MEDICAL ASSISTANT REPORT
+============================================================
+
+Patient Demographics:
+Not documented.
+Chief Complaint:
+Patient presents with dizziness and new onset chest pain.
+History of Present Illness:
+Patient reports dizziness which began two days ago, occurring every two days and lasting approximately three hours per episode. The dizziness is rated 9/10 in severity and is localized to the head. Associated symptoms include blurred vision. No specific triggers or relief factors have been identified by the patient. The patient was unable to characterize the specific nature of the dizziness. This is a new symptom for the patient.
+Patient also reports new onset chest pain, rated 8/10 in severity.
+Past Medical History:
+Diabetes (pre-existing condition).
+Family History:
+Heart attack.
+Diabetes (mother).
+Social History:
+Not documented.
+Medications:
+Metformin 500mg daily.
+Allergies:
+Peanuts.
+Vitals & Labs:
+Not documented.
+Assessment:
+Not documented.
+Plan:
+Not documented.
+Physician Notes:
+Not documented.
+
+============================================================
+Generated on: 9/27/2025, 2:48:59 PM
+============================================================

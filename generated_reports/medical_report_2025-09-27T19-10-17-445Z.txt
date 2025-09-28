@@ -1,0 +1,41 @@
+============================================================
+MEDICAL ASSISTANT REPORT
+============================================================
+
+Medical Assistant Report
+Date: 9/26/2025
+1.  Patient Demographics:
+    *   Not provided.
+2.  Chief Complaint:
+    *   Dizziness
+    *   Chest pain
+3.  History of Present Illness:
+    *   Dizziness: Onset 2 days ago, lasts for 3 hours, and occurs every 2 days. Severity is 9/10, located in the head.
+    *   Chest pain: Onset 3 days ago. The pain is sharp and gets worse when I breathe deeply.
+4.  Past Medical History:
+    *   Diabetes (pre-existing condition)
+    *   High blood pressure
+5.  Family History:
+    *   Heart attack
+    *   Diabetes (genetic)
+    *   Father had a heart attack at age 55
+6.  Social History:
+    *   Works as a construction worker
+    *   Smokes about half a pack of cigarettes per day
+7.  Medications:
+    *   Lisinopril 10 mg daily
+8.  Allergies:
+    *   Not provided.
+9.  Vitals & Labs:
+    *   Not provided.
+10. Assessment:
+    *   Dizziness
+    *   Chest pain
+11. Plan:
+    *   Not provided.
+12. Physician Notes:
+    *   Associated symptom of dizziness is blurred vision. No known triggers or relief factors for dizziness. Patient mentioned 'eyes' and 'blur' in relation to what makes the dizziness better or worse, clarifying that blurred vision is an associated symptom.
+
+============================================================
+Generated on: 9/27/2025, 3:10:18 PM
+============================================================

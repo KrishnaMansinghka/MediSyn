@@ -1,0 +1,44 @@
+============================================================
+MEDICAL ASSISTANT REPORT
+============================================================
+
+Medical Assistant Report
+Date: 9/26/2025
+Time: 5:58:23 PM
+Summary:
+The patient consultation was recorded and transcribed. The following information was captured from the conversation:
+Patient complains of chest pain that started 2 days ago, lasts for 30 minutes, severity 8/10, occurs daily. Also has shortness of breath and fatigue.
+Detailed Information:
+Primary Symptoms:
+pain, fatigue
+Onset:
+2 days ago
+Duration:
+30 minutes
+Severity (1-10):
+8 out of 10
+Frequency:
+Daily
+Character:
+Not specified
+Location:
+chest
+Triggers/Relief:
+Not specified
+Associated Symptoms:
+See transcription for details
+Medical History:
+Not specified
+Family History:
+Not specified
+Lifestyle/Context:
+Not specified
+Notes:
+- Report generated from live transcription
+- Speaker: Patient
+- Transcription timestamp: 2025-09-26T21:58:23.455Z
+- This is a fallback report (Gemini AI unavailable)
+
+============================================================
+Generated on: 9/26/2025, 5:58:24 PM
+============================================================

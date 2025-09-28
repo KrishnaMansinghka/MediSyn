@@ -1,0 +1,44 @@
+============================================================
+MEDICAL ASSISTANT REPORT
+============================================================
+
+Medical Assistant Report
+Date: 9/26/2025
+Time: 6:01:01 PM
+Summary:
+The patient consultation was recorded and transcribed. The following information was captured from the conversation:
+The trigger is dehydration.  As a history of smoking. 
+Detailed Information:
+Primary Symptoms:
+Not specified
+Onset:
+Not specified
+Duration:
+Not specified
+Severity (1-10):
+Not specified
+Frequency:
+Not specified
+Character:
+Not specified
+Location:
+Not specified
+Triggers/Relief:
+Not specified
+Associated Symptoms:
+Not specified
+Medical History:
+Not specified
+Family History:
+Not specified
+Lifestyle/Context:
+See transcription for details
+Notes:
+- Report generated from live transcription
+- Speaker: Doctor/Patient
+- Transcription timestamp: 2025-09-26T22:01:01.772Z
+- This is a fallback report (Gemini AI unavailable)
+
+============================================================
+Generated on: 9/26/2025, 6:01:03 PM
+============================================================

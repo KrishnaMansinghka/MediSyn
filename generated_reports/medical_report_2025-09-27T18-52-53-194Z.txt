@@ -1,0 +1,44 @@
+============================================================
+MEDICAL ASSISTANT REPORT
+============================================================
+
+Medical Assistant Report
+Date: 9/26/2025
+1. Patient Demographics
+[Not provided - No updates]
+2. Chief Complaint
+Dizziness
+3. History of Present Illness
+The patient is experiencing dizziness that started two days ago, lasts for 3 hours, and occurs every two days. The severity is 9/10, and it's located in the head. Associated symptom is blurred vision. No known triggers or relief factors. Patient reports pain.
+Detailed Information:
+Primary Symptoms: dizziness
+Onset: 2 days ago
+Duration: 3 hours
+Severity (1-10): 9 out of 10
+Frequency: every 2 days
+Character: I don't know what the dizziness feels like.
+Location: head
+Triggers/Relief: No known triggers or relief. Patient mentioned 'eyes' and 'blur' in relation to what makes it better or worse, clarifying that blurred vision is an associated symptom.
+Associated Symptoms: blurred vision
+4. Past Medical History
+Diabetes (pre-existing condition)
+5. Family History
+Heart attack, diabetes (genetic)
+6. Social History
+[Not provided - No updates]
+7. Medications
+Aspirin
+8. Allergies
+[Not provided - No updates]
+9. Vitals & Labs
+[Not provided - No updates]
+10. Assessment
+[Not provided - No updates]
+11. Plan
+[Not provided - No updates]
+12. Physician Notes
+[Not provided - No updates]
+
+============================================================
+Generated on: 9/27/2025, 2:52:54 PM
+============================================================

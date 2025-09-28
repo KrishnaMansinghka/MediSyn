@@ -1,0 +1,36 @@
+============================================================
+MEDICAL ASSISTANT REPORT
+============================================================
+
+Medical Assistant Report
+Date: 9/26/2025
+1. Patient Demographics
+Age: 24
+Sex: Female
+2. Chief Complaint
+Chest pain
+3. History of Present Illness
+The patient is experiencing dizziness that started two days ago, lasts for 3 hours, and occurs every two days. The severity is 9/10, and it's located in the head.
+Associated symptom is blurred vision. No known triggers or relief factors. This is a new symptom for the patient.
+4. Past Medical History
+Diabetes (pre-existing condition)
+5. Family History
+Heart attack, diabetes (genetic)
+6. Social History
+Not provided.
+7. Medications
+None mentioned.
+8. Allergies
+None mentioned.
+9. Vitals & Labs
+None provided.
+10. Assessment
+I-10
+11. Plan
+None provided.
+12. Physician Notes
+None.
+
+============================================================
+Generated on: 9/27/2025, 3:06:53 PM
+============================================================
