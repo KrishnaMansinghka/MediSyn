@@ -15,6 +15,7 @@ from pathlib import Path
 
 # Configuration
 BACKEND_AUTH_PORT = 8001
+CHATBOT_PORT = 8000
 FRONTEND_PORT = 5173  # Fixed port as configured in vite.config.ts
 PROJECT_ROOT = Path(__file__).parent
 
@@ -132,6 +133,51 @@ def start_auth_backend():
         print(f"❌ Failed to start authentication API: {e}")
         return None
 
+def start_chatbot_backend():
+    """Start the chatbot backend API"""
+    print(f"🤖 Starting Chatbot API on port {CHATBOT_PORT}...")
+    
+    chatbot_dir = PROJECT_ROOT / "backend" / "Chatbot"
+    venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+    
+    if not (chatbot_dir / "api_server.py").exists():
+        print("❌ Chatbot API file not found!")
+        return None
+    
+    try:
+        # Set environment variables
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(PROJECT_ROOT)
+        
+        process = subprocess.Popen([
+            str(venv_python), "api_server.py"
+        ], 
+        cwd=chatbot_dir,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1
+        )
+        
+        processes.append(process)
+        print(f"✅ Chatbot API started (PID: {process.pid})")
+        
+        # Start a thread to monitor the process output
+        def monitor_chatbot():
+            for line in iter(process.stdout.readline, ''):
+                if line.strip():
+                    print(f"[CHATBOT-API] {line.strip()}")
+        
+        chatbot_thread = threading.Thread(target=monitor_chatbot, daemon=True)
+        chatbot_thread.start()
+        
+        return process
+    
+    except Exception as e:
+        print(f"❌ Failed to start chatbot API: {e}")
+        return None
+
 def start_frontend():
     """Start the frontend development server"""
     print(f"🎨 Starting Frontend on port {FRONTEND_PORT}...")
@@ -213,11 +259,14 @@ def print_status():
     print("🎉 MediSyn Application is Running!")
     print("="*60)
     print(f"🔒 Authentication API: http://localhost:{BACKEND_AUTH_PORT}")
+    print(f"🤖 Chatbot API: http://localhost:{CHATBOT_PORT}")
     print(f"🎨 Frontend Application: http://localhost:{FRONTEND_PORT}")
     print("="*60)
     print("📖 Available endpoints:")
     print(f"   • API Health: http://localhost:{BACKEND_AUTH_PORT}/")
     print(f"   • API Docs: http://localhost:{BACKEND_AUTH_PORT}/docs")
+    print(f"   • Chatbot Health: http://localhost:{CHATBOT_PORT}/health")
+    print(f"   • Chatbot Docs: http://localhost:{CHATBOT_PORT}/docs")
     print(f"   • Login Page: http://localhost:{FRONTEND_PORT}/medicare/login")
     print(f"   • Signup Page: http://localhost:{FRONTEND_PORT}/medicare/signup")
     print("="*60)
@@ -272,6 +321,17 @@ def main():
         # Wait for backend to be ready
         if not wait_for_service(f"http://localhost:{BACKEND_AUTH_PORT}/", "Authentication API"):
             print("❌ Backend failed to start properly")
+            return 1
+        
+        # Start chatbot backend
+        chatbot_process = start_chatbot_backend()
+        if not chatbot_process:
+            print("❌ Failed to start chatbot services")
+            return 1
+        
+        # Wait for chatbot to be ready
+        if not wait_for_service(f"http://localhost:{CHATBOT_PORT}/health", "Chatbot API"):
+            print("❌ Chatbot API failed to start properly")
             return 1
         
         # Start frontend

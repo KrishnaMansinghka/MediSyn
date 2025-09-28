@@ -34,6 +34,7 @@ const MediCareApp = () => {
           {/* Patient Flow */}
           <Route path="/patient-dashboard" element={<PatientDashboard />} />
           <Route path="/prerequisite-information" element={<PrerequisiteInformation />} />
+          <Route path="/prerequisite-information/:appointmentId" element={<PrerequisiteInformation />} />
           <Route path="/initial-screening" element={<InitialScreening />} />
           <Route path="/patient-report/:reportId" element={<ViewReport />} />
           <Route path="/intake/:appointmentId" element={<ChartPrepIntake />} />

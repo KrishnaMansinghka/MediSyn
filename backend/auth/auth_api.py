@@ -99,6 +99,17 @@ class UserResponse(BaseModel):
     user_name: str
     is_active: bool
 
+class PrerequisiteData(BaseModel):
+    gender: str
+    height: str
+    weight: str
+    insuranceProvider: str
+    insurancePlan: str
+    emergencyContactPhone: str
+    allergies: Optional[str] = ""
+    medications: Optional[str] = ""
+    medicalHistory: Optional[str] = ""
+
 # Database instance
 db = MediSynDB()
 
@@ -545,6 +556,48 @@ async def update_appointment_status(
             )
         
         return {"message": "Appointment status updated successfully"}
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+    finally:
+        db.disconnect()
+
+@app.put("/api/appointment/{appointment_id}/prerequisite")
+async def update_appointment_prerequisite(
+    appointment_id: int,
+    prerequisite_data: PrerequisiteData,
+    current_user: dict = Depends(verify_token)
+):
+    """Update appointment prerequisite information"""
+    try:
+        # Patients can update their own appointment prerequisites
+        if current_user['user_type'] not in ['patient', 'doctor']:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Only patients and doctors can update prerequisite information"
+            )
+        
+        db = MediSynDB()
+        if not db.connect():
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database connection failed"
+            )
+        
+        # Convert Pydantic model to dictionary
+        data_dict = prerequisite_data.dict()
+        
+        success = db.update_appointment_prerequisite_data(appointment_id, data_dict)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found or update failed"
+            )
+        
+        return {"message": "Prerequisite information updated successfully"}
     
     except Exception as e:
         raise HTTPException(

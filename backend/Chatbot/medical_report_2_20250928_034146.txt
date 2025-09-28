@@ -1,0 +1,27 @@
+=================================================
+MEDICAL ASSISTANT REPORT - 2025-09-28 03:41:46
+Patient: Bob Johnson
+Session ID: 94d7e0d1-b45d-4a48-a5b9-6b10f4bb194b
+=================================================
+
+--- SUMMARY OF FINDINGS ---
+The patient presents with sharp chest pain located near the heart, which began yesterday and has been constant, rated as an 8 out of 10 in severity. They report no other associated symptoms and deny any prior episodes of this chest pain. The patient denies any other current medical conditions or recent lifestyle changes. Family history includes diabetes in the father.
+
+--- DETAILED SYMPTOM DATA ---
+Primary Symptoms         : Chest pain
+Onset                    : Yesterday
+Duration                 : Constant, all the time
+Severity (1-10)          : 8/10
+Frequency                : Constant
+Character                : Sharp
+Location                 : Near heart
+Triggers/Relief          : Unknown
+Associated Symptoms      : None
+Medical History          : None
+Family History           : Father has diabetes
+Lifestyle/Context        : No recent changes in diet, activity, or environment
+Patient Demographics     : {'Gender': 'Male', 'Height': '175', 'Weight': '77'}
+Insurance Information    : {'Provider': 'Aetna', 'Plan': 'Plan B'}
+Emergency Contact        : 555-2222
+Known Allergies          : None
+Current Medications      : Aspirin

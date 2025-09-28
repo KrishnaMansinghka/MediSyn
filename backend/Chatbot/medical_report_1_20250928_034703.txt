@@ -1,0 +1,27 @@
+=================================================
+MEDICAL ASSISTANT REPORT - 2025-09-28 03:47:03
+Patient: Alice Smith
+Session ID: dd6e4727-af4e-45b1-a5af-b2e0215b9257
+=================================================
+
+--- SUMMARY OF FINDINGS ---
+The patient, a female, presents with a continuous, throbbing headache of 11/10 severity, localized to both sides of the head, which started yesterday. She denies any associated symptoms, previous similar headaches, or other currently relevant medical conditions, and no recent lifestyle changes. Her medical history includes asthma, she is allergic to peanuts, and currently takes Ibuprofen.
+
+--- DETAILED SYMPTOM DATA ---
+Primary Symptoms         : Headache
+Onset                    : Yesterday
+Duration                 : Continuous since yesterday (still present)
+Severity (1-10)          : 11/10
+Frequency                : Continuous
+Character                : Throbbing
+Location                 : Both sides of the head
+Triggers/Relief          : Not provided
+Associated Symptoms      : No
+Medical History          : Asthma (from prerequisite data), Patient denies other relevant medical conditions during conversation.
+Family History           : No
+Lifestyle/Context        : No recent changes in diet, activity, or environment.
+Patient Demographics     : {'gender': 'Female', 'height_cm': '165', 'weight_kg': '62'}
+Insurance Information    : {'provider': 'BlueCross', 'plan': 'Plan A'}
+Emergency Contact        : 555-1111
+Known Allergies          : Peanuts
+Current Medications      : Ibuprofen

@@ -41,7 +41,7 @@ class ChatbotService {
   /**
    * Initialize a new chatbot session
    */
-  async startSession(): Promise<ChatbotResponse> {
+  async startSession(patientName?: string, patientId?: string, appointmentId?: string): Promise<ChatbotResponse> {
     this.conversation = [];
     this.isSessionActive = true;
     
@@ -54,8 +54,9 @@ class ChatbotService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          patient_name: 'Patient', // Could be passed from frontend
-          patient_id: `patient_${Date.now()}`
+          patient_name: patientName || 'Patient',
+          patient_id: patientId || `patient_${Date.now()}`,
+          appointment_id: appointmentId
         })
       });
 

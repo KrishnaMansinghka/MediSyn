@@ -234,11 +234,19 @@ class MediSynDB:
     def get_patient_appointments_with_doctor(self, patient_id: int) -> List[Dict[str, Any]]:
         """Get all appointments for a patient with doctor information"""
         query = """
+            WITH patient_doctor AS (
+                SELECT DISTINCT 
+                    dp.patientID,
+                    MIN(dp.docID) as docID  -- Get one doctor per patient for simplicity
+                FROM DoctorPatient dp
+                WHERE dp.patientID = %s
+                GROUP BY dp.patientID
+            )
             SELECT 
                 a.appointmentID,
                 a.status as appointment_status,
-                d.doctor_name,
-                d.clinic_name,
+                COALESCE(d.doctor_name, 'Dr. MediSyn') as doctor_name,
+                COALESCE(d.clinic_name, 'MediSyn Clinic') as clinic_name,
                 -- Simulate appointment date and time for demo
                 CURRENT_DATE as appointment_date,
                 '09:00:00'::TIME as appointment_time,
@@ -250,12 +258,12 @@ class MediSynDB:
                 END as time_status
             FROM Appointments a
             JOIN PatientAppointment pa ON a.appointmentID = pa.appointmentID
-            JOIN DoctorPatient dp ON pa.patientID = dp.patientID
-            JOIN Doctors d ON dp.docID = d.docID
+            LEFT JOIN patient_doctor pd ON pa.patientID = pd.patientID
+            LEFT JOIN Doctors d ON pd.docID = d.docID
             WHERE pa.patientID = %s
             ORDER BY a.appointmentID DESC;
         """
-        return self.execute_query(query, (patient_id,))
+        return self.execute_query(query, (patient_id, patient_id))
     
     def get_doctor_patients_with_appointments(self, doctor_id: int) -> List[Dict[str, Any]]:
         """Get all patients assigned to a doctor with their latest appointment info"""
@@ -312,6 +320,35 @@ class MediSynDB:
             WHERE appointmentID = %s;
         """
         return self.execute_update(query, (status, appointment_id))
+    
+    def update_appointment_prerequisite_data(self, appointment_id: int, prerequisite_data: Dict[str, Any]) -> bool:
+        """Update appointment prerequisite information"""
+        query = """
+            UPDATE appointments 
+            SET 
+                gender = %s,
+                height = %s,
+                weight = %s,
+                emergency_contact_number = %s,
+                insurance_provider = %s,
+                insurance_plan = %s,
+                known_allergies = %s,
+                current_medication = %s,
+                medical_history = %s
+            WHERE appointmentid = %s;
+        """
+        return self.execute_update(query, (
+            prerequisite_data.get('gender'),
+            prerequisite_data.get('height'),
+            prerequisite_data.get('weight'),
+            prerequisite_data.get('emergencyContactPhone'),
+            prerequisite_data.get('insuranceProvider'),
+            prerequisite_data.get('insurancePlan'),
+            prerequisite_data.get('allergies', ''),
+            prerequisite_data.get('medications', ''),
+            prerequisite_data.get('medicalHistory', ''),
+            appointment_id
+        ))
     
     def get_doctor_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """Get doctor by email"""

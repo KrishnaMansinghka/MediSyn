@@ -16,7 +16,7 @@ import {
   CheckCircle,
   AlertCircle
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { chatbotService, ChatMessage as ApiChatMessage } from "@/lib/chatbot-service";
 import { getCurrentSession } from "@/lib/auth";
 
@@ -29,6 +29,7 @@ interface ChatMessage {
 
 const InitialScreening = () => {
   const navigate = useNavigate();
+  const { appointmentId } = useParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -43,14 +44,25 @@ const InitialScreening = () => {
   useEffect(() => {
     const session = getCurrentSession();
     setCurrentUser(session);
-    initializeChat();
   }, []);
+
+  // Initialize chat when user is available
+  useEffect(() => {
+    if (currentUser) {
+      initializeChat();
+    }
+  }, [currentUser, appointmentId]);
 
   const initializeChat = async () => {
     try {
       setIsLoading(true);
       setError("");
-      const response = await chatbotService.startSession();
+      
+      // Pass patient information and appointment ID to chatbot
+      const patientName = currentUser?.userName || "Patient";
+      const patientId = currentUser?.userId?.toString();
+      
+      const response = await chatbotService.startSession(patientName, patientId, appointmentId);
       
       const initialMessage: ChatMessage = {
         id: "1",

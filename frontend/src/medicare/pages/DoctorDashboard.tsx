@@ -308,7 +308,14 @@ const DoctorDashboard = () => {
                           
                           <div className="flex-1">
                             <div className="flex items-center space-x-3">
-                              <h3 className="font-semibold text-foreground">{patient.patient_name}</h3>
+                              <h3 className="font-semibold text-foreground">
+                                {patient.patient_name}
+                                {patient.appointment_status !== undefined && (
+                                  <span className="text-sm text-muted-foreground ml-2">
+                                    (Status: {patient.appointment_status})
+                                  </span>
+                                )}
+                              </h3>
                               <Badge variant="outline" className="text-xs">
                                 {patient.display_time || 'No Time'}
                               </Badge>

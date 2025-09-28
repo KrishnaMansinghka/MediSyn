@@ -70,8 +70,12 @@ const PatientDashboard = () => {
     navigate('/medicare/initial-screening');
   };
 
-  const handlePrerequisiteInfo = () => {
-    navigate('/medicare/prerequisite-information');
+  const handlePrerequisiteInfo = (appointmentId?: string) => {
+    if (appointmentId) {
+      navigate(`/medicare/prerequisite-information/${appointmentId}`);
+    } else {
+      navigate('/medicare/prerequisite-information');
+    }
   };
 
   const handleViewReport = (appointmentId: string) => {
@@ -147,26 +151,26 @@ const PatientDashboard = () => {
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    {upcomingAppointment.appointment_status === 0 && (
-                      <Button 
-                        onClick={handlePrerequisiteInfo}
-                        variant="outline"
-                        className="border-primary/20 text-primary hover:bg-primary/5"
-                      >
-                        <ClipboardList className="w-4 h-4 mr-2" />
-                        {getAppointmentButtonText(upcomingAppointment.appointment_status)}
-                      </Button>
-                    )}
-                    
-                    {upcomingAppointment.appointment_status === 1 && (
-                      <Button 
-                        onClick={handleStartScreening}
-                        className="bg-primary hover:bg-primary-dark"
-                      >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        {getAppointmentButtonText(upcomingAppointment.appointment_status)}
-                        <ChevronRight className="w-4 h-4 ml-2" />
-                      </Button>
+                    {(upcomingAppointment.appointment_status === 0 || upcomingAppointment.appointment_status === 1) && (
+                      <>
+                        <Button 
+                          onClick={() => handlePrerequisiteInfo(upcomingAppointment.appointmentid.toString())}
+                          variant="outline"
+                          className="border-primary/20 text-primary hover:bg-primary/5"
+                        >
+                          <ClipboardList className="w-4 h-4 mr-2" />
+                          Pre-req Information
+                        </Button>
+                        
+                        <Button 
+                          onClick={handleStartScreening}
+                          className="bg-primary hover:bg-primary-dark"
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          Pre Screening (Chatbot)
+                          <ChevronRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </>
                     )}
                     
                     {upcomingAppointment.appointment_status === 2 && (
@@ -224,7 +228,9 @@ const PatientDashboard = () => {
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                           <User className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-medium text-foreground">{appointment.doctor_name}</span>
+                          <span className="font-medium text-foreground">
+                            {appointment.doctor_name} (Status: {appointment.appointment_status})
+                          </span>
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                           <span className="flex items-center">

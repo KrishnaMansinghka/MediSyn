@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, User } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import MedicalHeader from "../components/MedicalHeader";
 import { z } from "zod";
+import { updateAppointmentPrerequisite } from "../../lib/appointment-service";
 
 const prerequisiteSchema = z.object({
   gender: z.string().min(1, "Gender is required"),
@@ -29,8 +30,20 @@ type PrerequisiteData = z.infer<typeof prerequisiteSchema>;
 const PrerequisiteInformation = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { appointmentId } = useParams();
   
   const user = { name: "Krishna", role: "patient" };
+  
+  // Get current user from localStorage 
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  useEffect(() => {
+    const sessionData = localStorage.getItem('medisyn_session');
+    if (sessionData) {
+      const session = JSON.parse(sessionData);
+      setCurrentUser(session.user);
+    }
+  }, []);
 
   const [formData, setFormData] = useState<PrerequisiteData>({
     gender: "",
@@ -65,8 +78,33 @@ const PrerequisiteInformation = () => {
       // Validate form data
       prerequisiteSchema.parse(formData);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // We need to get an appointment ID - for now, we'll use the most recent appointment
+      // In a real app, this would be passed via URL params or context
+      let targetAppointmentId = appointmentId ? parseInt(appointmentId) : null;
+      
+      if (!targetAppointmentId && currentUser) {
+        // If no specific appointment ID, we could get the user's active appointment
+        // For now, we'll use a placeholder - this should be improved
+        toast({
+          title: "Error",
+          description: "No appointment ID specified. Please access this form from your appointment.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Call the API to update prerequisite information
+      await updateAppointmentPrerequisite(targetAppointmentId!, {
+        gender: formData.gender,
+        height: formData.height,
+        weight: formData.weight,
+        insuranceProvider: formData.insuranceProvider,
+        insurancePlan: formData.insurancePlan,
+        emergencyContactPhone: formData.emergencyContactPhone,
+        allergies: formData.allergies,
+        medications: formData.medications,
+        medicalHistory: formData.medicalHistory,
+      });
       
       toast({
         title: "Information saved successfully",
@@ -83,6 +121,13 @@ const PrerequisiteInformation = () => {
           }
         });
         setErrors(newErrors);
+      } else {
+        // Handle API errors
+        toast({
+          title: "Error saving information",
+          description: error instanceof Error ? error.message : "Failed to save prerequisite information",
+          variant: "destructive"
+        });
       }
     } finally {
       setIsSubmitting(false);

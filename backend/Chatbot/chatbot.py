@@ -2,9 +2,20 @@ import requests
 import json
 import time
 import os
+import sys
 from datetime import datetime
 import asyncio
 from typing import Dict, List, Optional, Any
+
+# Add the database directory to Python path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'database'))
+
+try:
+    from postgres_utils import MediSynDB
+    DATABASE_AVAILABLE = True
+except ImportError:
+    print("Warning: Database utilities not available. Prerequisite data integration disabled.")
+    DATABASE_AVAILABLE = False
 
 # --- Configuration ---
 # NOTE: You MUST replace "YOUR_GEMINI_API_KEY_HERE" with your actual Gemini API Key.
@@ -13,6 +24,74 @@ API_KEY = "AIzaSyBPcnllCQfx44SljP2cIT6gfjwr7Rnl0r0"
 MODEL_NAME = "gemini-2.5-flash-preview-05-20"
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={API_KEY}"
 REPORT_COMPLETE_TOKEN = "<<REPORT_COMPLETE>>"
+
+# --- Database Integration Functions ---
+def get_prerequisite_data(appointment_id: Optional[str] = None, patient_id: Optional[str] = None) -> Dict[str, Any]:
+    """Fetch prerequisite data from appointments table"""
+    if not DATABASE_AVAILABLE:
+        return {}
+    
+    try:
+        db = MediSynDB()
+        if not db.connect():
+            print("Failed to connect to database")
+            return {}
+        
+        # Query to get prerequisite data including patient name and date of birth
+        if appointment_id:
+            # Get data by appointment ID
+            query = """
+                SELECT 
+                    p.name as patient_name, p.dateofbirth as date_of_birth,
+                    a.gender, a.height, a.weight, a.emergency_contact_number,
+                    a.insurance_provider, a.insurance_plan, a.known_allergies,
+                    a.current_medication, a.medical_history
+                FROM appointments a
+                JOIN patientappointment pa ON a.appointmentid = pa.appointmentid
+                JOIN patients p ON pa.patientid = p.id
+                WHERE a.appointmentid = %s
+            """
+            results = db.execute_query(query, (int(appointment_id),))
+        elif patient_id:
+            # Get most recent appointment data for patient
+            query = """
+                SELECT 
+                    p.name as patient_name, p.dateofbirth as date_of_birth,
+                    a.gender, a.height, a.weight, a.emergency_contact_number,
+                    a.insurance_provider, a.insurance_plan, a.known_allergies,
+                    a.current_medication, a.medical_history
+                FROM appointments a
+                JOIN patientappointment pa ON a.appointmentid = pa.appointmentid
+                JOIN patients p ON pa.patientid = p.id
+                WHERE pa.patientid = %s
+                ORDER BY a.appointmentid DESC
+                LIMIT 1
+            """
+            results = db.execute_query(query, (int(patient_id),))
+        else:
+            return {}
+        
+        if results and len(results) > 0:
+            data = results[0]
+            return {
+                'patient_name': data.get('patient_name', ''),
+                'date_of_birth': data.get('date_of_birth', ''),
+                'gender': data.get('gender', ''),
+                'height': data.get('height', ''),
+                'weight': data.get('weight', ''),
+                'emergency_contact': data.get('emergency_contact_number', ''),
+                'insurance_provider': data.get('insurance_provider', ''),
+                'insurance_plan': data.get('insurance_plan', ''),
+                'known_allergies': data.get('known_allergies', ''),
+                'current_medications': data.get('current_medication', ''),
+                'previous_medical_history': data.get('medical_history', '')
+            }
+        
+        return {}
+        
+    except Exception as e:
+        print(f"Error fetching prerequisite data: {e}")
+        return {}
 
 # --- System Prompt (The core logic for the Medical Assistant) ---
 SYSTEM_PROMPT = """
@@ -43,20 +122,26 @@ When you have exhausted all lines of questioning and feel the medical report is 
 
 # --- Report Generation Prompt (for the final summary) ---
 REPORT_PROMPT_TEMPLATE = """
-You are a medical scribe. Your task is to summarize the following patient conversation history.
+You are a medical scribe. Your task is to summarize the following patient conversation history and integrate it with existing patient prerequisite information.
 
 1.  Provide a concise summary of the key findings in a brief paragraph.
-2.  Then, extract the remaining details into a structured JSON object with the following keys and values: `summary`, `symptoms`, `onset`, `duration`, `severity`, `frequency`, `character`, `location`, `triggers_relief`, `associated_symptoms`, `medical_history`, `family_history`, `lifestyle_context`.
-3.  For each key, extract the patient's response from the conversation history below. If a category was not addressed or the patient said they did not know, set the value to 'Not provided' or 'Unknown'.
-4.  The final output MUST be only the JSON object. Do not include any analysis, diagnosis, or advice outside of the JSON.
+2.  Then, extract the remaining details into a structured JSON object with the following keys and values: `summary`, `symptoms`, `onset`, `duration`, `severity`, `frequency`, `character`, `location`, `triggers_relief`, `associated_symptoms`, `medical_history`, `family_history`, `lifestyle_context`, `patient_demographics`, `insurance_information`, `emergency_contact`, `known_allergies`, `current_medications`.
+3.  For each key, extract information from both the conversation history AND the prerequisite data below. If information appears in both sources, prioritize the conversation data as it's more recent.
+4.  For keys not addressed in either source, set the value to 'Not provided' or 'Unknown'.
+5.  The final output MUST be only the JSON object. Do not include any analysis, diagnosis, or advice outside of the JSON.
 
 CONVERSATION HISTORY:
 ---
 {}
 ---
+
+PATIENT PREREQUISITE DATA:
+---
+{}
+---
 """
 
-def call_gemini_api(history, report_mode=False):
+def call_gemini_api(history, report_mode=False, prerequisite_data=None):
     """Handles the API call to the Gemini model with conversation history."""
     if API_KEY == "YOUR_GEMINI_API_KEY_HERE" or not API_KEY:
         print("\nERROR: Please replace 'YOUR_GEMINI_API_KEY_HERE' in the script with your actual Gemini API Key.")
@@ -87,7 +172,17 @@ def call_gemini_api(history, report_mode=False):
             role = "Patient" if msg['sender'] == 'user' else "Assistant"
             conversation_text += f"{role}: {msg['text']}\n"
         
-        report_system_instruction = REPORT_PROMPT_TEMPLATE.format(conversation_text)
+        # Format prerequisite data (will be empty if not available)
+        prerequisite_text = "No prerequisite data available"
+        if prerequisite_data:
+            prerequisite_lines = []
+            for key, value in prerequisite_data.items():
+                if value and str(value).strip():
+                    prerequisite_lines.append(f"{key.replace('_', ' ').title()}: {value}")
+            if prerequisite_lines:
+                prerequisite_text = "\n".join(prerequisite_lines)
+        
+        report_system_instruction = REPORT_PROMPT_TEMPLATE.format(conversation_text, prerequisite_text)
         payload["systemInstruction"]["parts"][0]["text"] = report_system_instruction
         
         # Simplified generation config - request JSON but don't enforce strict schema
@@ -266,7 +361,12 @@ def format_and_save_report(raw_json_report, base_filename=None):
         "associated_symptoms": "Associated Symptoms",
         "medical_history": "Medical History",
         "family_history": "Family History",
-        "lifestyle_context": "Lifestyle/Context"
+        "lifestyle_context": "Lifestyle/Context",
+        "patient_demographics": "Patient Demographics", 
+        "insurance_information": "Insurance Information",
+        "emergency_contact": "Emergency Contact",
+        "known_allergies": "Known Allergies",
+        "current_medications": "Current Medications"
     }
 
     report_output = "=================================================\n"
@@ -306,13 +406,17 @@ def format_and_save_report(raw_json_report, base_filename=None):
 class ChatbotSession:
     """Session-based chatbot for API integration"""
     
-    def __init__(self, session_id: str, patient_name: Optional[str] = None, patient_id: Optional[str] = None):
+    def __init__(self, session_id: str, patient_name: Optional[str] = None, patient_id: Optional[str] = None, appointment_id: Optional[str] = None):
         self.session_id = session_id
         self.patient_name = patient_name or "Patient"
         self.patient_id = patient_id or session_id
+        self.appointment_id = appointment_id
         self.conversation_history: List[Dict[str, str]] = []
         self.is_complete = False
         self.created_at = datetime.now()
+        
+        # Fetch prerequisite data on initialization
+        self.prerequisite_data = get_prerequisite_data(appointment_id, patient_id)
         
     def get_initial_message(self) -> str:
         """Get the initial greeting message"""
@@ -338,7 +442,8 @@ class ChatbotSession:
                 None, 
                 call_gemini_api, 
                 self.conversation_history, 
-                False
+                False,
+                None  # No prerequisite data needed for normal conversation
             )
             
             # Check for completion signal
@@ -383,7 +488,8 @@ class ChatbotSession:
                 None,
                 call_gemini_api,
                 self.conversation_history,
-                True
+                True,
+                self.prerequisite_data  # Pass prerequisite data for report generation
             )
             
             # Parse the JSON report
@@ -450,13 +556,23 @@ class ChatbotSession:
             "associated_symptoms": "Associated Symptoms",
             "medical_history": "Medical History",
             "family_history": "Family History",
-            "lifestyle_context": "Lifestyle/Context"
+            "lifestyle_context": "Lifestyle/Context",
+            "patient_demographics": "Patient Demographics",
+            "insurance_information": "Insurance Information",
+            "emergency_contact": "Emergency Contact",
+            "known_allergies": "Known Allergies",
+            "current_medications": "Current Medications"
         }
         
-        # Generate text report
+        # Generate text report with patient information from prerequisite data if available
+        patient_display_name = self.prerequisite_data.get('patient_name', self.patient_name) if self.prerequisite_data else self.patient_name
+        date_of_birth = self.prerequisite_data.get('date_of_birth', '') if self.prerequisite_data else ''
+        
         report_output = "=================================================\n"
         report_output += f"MEDICAL ASSISTANT REPORT - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        report_output += f"Patient: {self.patient_name}\n"
+        report_output += f"Patient: {patient_display_name}\n"
+        if date_of_birth:
+            report_output += f"Date of Birth: {date_of_birth}\n"
         report_output += f"Session ID: {self.session_id}\n"
         report_output += "=================================================\n\n"
         

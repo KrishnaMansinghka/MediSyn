@@ -26,7 +26,12 @@ app = FastAPI(
 # Add CORS middleware to allow frontend connections
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://127.0.0.1:8080"],  # Frontend URLs
+    allow_origins=[
+        "http://localhost:8080", "http://127.0.0.1:8080",  # Original frontend URLs
+        "http://localhost:5173", "http://127.0.0.1:5173",  # Vite dev server
+        "http://localhost:5174", "http://127.0.0.1:5174",  # Alternative Vite ports
+        "http://localhost:5175", "http://127.0.0.1:5175"   # Alternative Vite ports
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,6 +45,7 @@ active_sessions: Dict[str, ChatbotSession] = {}
 class StartSessionRequest(BaseModel):
     patient_name: Optional[str] = None
     patient_id: Optional[str] = None
+    appointment_id: Optional[str] = None
 
 class StartSessionResponse(BaseModel):
     session_id: str
@@ -93,7 +99,8 @@ async def start_session(request: StartSessionRequest):
         chatbot_session = ChatbotSession(
             session_id=session_id,
             patient_name=request.patient_name,
-            patient_id=request.patient_id
+            patient_id=request.patient_id,
+            appointment_id=request.appointment_id
         )
         
         # Store session

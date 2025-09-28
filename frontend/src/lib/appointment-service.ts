@@ -239,6 +239,58 @@ export function formatAppointmentDate(date: string): string {
 }
 
 /**
+ * Update appointment prerequisite information
+ */
+export async function updateAppointmentPrerequisite(
+  appointmentId: number, 
+  prerequisiteData: {
+    gender: string;
+    height: string;
+    weight: string;
+    insuranceProvider: string;
+    insurancePlan: string;
+    emergencyContactPhone: string;
+    allergies?: string;
+    medications?: string;
+    medicalHistory?: string;
+  }
+): Promise<void> {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/appointment/${appointmentId}/prerequisite`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(prerequisiteData),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('medisyn_session');
+        window.location.href = '/medicare/login';
+        throw new Error('Authentication failed - please log in again');
+      } else if (response.status === 403) {
+        throw new Error('Access denied');
+      } else {
+        throw new Error(`Failed to update prerequisite information: ${response.statusText}`);
+      }
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error updating prerequisite information:', error);
+    throw error;
+  }
+}
+
+/**
  * Get status label for appointment
  */
 export function getAppointmentStatusLabel(status: number): string {
